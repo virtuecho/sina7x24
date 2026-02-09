@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <!-- Written by Deepseek R1 thru Tencent Yuanbao on Tuesday, 16 September 2025 -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新浪财经7*24小时全球实时财经新闻直播</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #2c3e50, #4a69bd);
+            color: white;
+            padding: 20px 0;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .search-box {
+            flex: 1;
+            max-width: 400px;
+            position: relative;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 1px solid #ddd;
+            border-radius: 30px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #4a69bd;
+            box-shadow: 0 0 0 2px rgba(74, 105, 189, 0.2);
+        }
+        
+        .search-box i {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #888;
+        }
+        
+        .filter-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        select {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: white;
+            font-size: 14px;
+        }
+        
+        .refresh-btn {
+            background-color: #4a69bd;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.3s;
+        }
+        
+        .refresh-btn:hover:not(:disabled) {
+            background-color: #3c5aa8;
+        }
+        
+        .refresh-btn:disabled {
+            background-color: #8da6e0;
+            cursor: not-allowed;
+        }
+        
+        .refreshing {
+            animation: rotate 1s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4a69bd;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #777;
+        }
+        
+        .content-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .content-item {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .content-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        
+        .content-id {
+            font-size: 14px;
+            color: #777;
+            background-color: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .content-time {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        .content-text {
+            font-size: 16px;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        
+        .highlight-text {
+            color: red !important;
+            font-weight: bold;
+        }
+        
+        .content-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        
+        .content-tags {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .tag {
+            background-color: #eaf0ff;
+            color: #4a69bd;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        
+        .content-actions {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .action-btn {
+            background: none;
+            border: none;
+            color: #777;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+            transition: color 0.3s;
+            padding: 6px 12px;
+            border-radius: 4px;
+            background-color: #f1f5f9;
+        }
+        
+        .action-btn:hover {
+            color: #4a69bd;
+            background-color: #eaf0ff;
+        }
+        
+        .action-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #f9f9f9;
+        }
+        
+        .action-btn.disabled:hover {
+            color: #777;
+            background-color: #f9f9f9;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 30px;
+            font-size: 18px;
+            color: #777;
+        }
+        
+        .error {
+            background-color: #ffebee;
+            color: #d32f2f;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .global-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #4a69bd;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .global-loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 50%;
+            background-color: #3c5aa8;
+            animation: loading 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes loading {
+            0% { left: -50%; }
+            100% { left: 150%; }
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #777;
+            border-top: 1px solid #eee;
+        }
+        
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .search-box {
+                max-width: 100%;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .content-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .content-footer {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+            
+            .content-actions {
+                align-self: stretch;
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="global-loading" id="globalLoading"></div>
+    
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <h1><i class="fas fa-broadcast-tower"></i> 新浪财经7*24小时全球实时财经新闻直播</h1>
+                <div>
+                    <span>自动刷新已启用 (5秒)</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="error" id="errorMessage"></div>
+        
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索直播内容...">
+                <i class="fas fa-search"></i>
+            </div>
+            
+            <div class="filter-box">
+                <select id="typeFilter">
+                    <option value="all">全部</option>
+                    <option value="10">A股</option>
+                    <option value="1">宏观</option>
+                    <option value="3">公司</option>
+                    <option value="4">数据</option>
+                    <option value="5">市场</option>
+                    <option value="102">国际</option>
+                    <option value="6">观点</option>
+                    <option value="7">央行</option>
+                    <option value="8">其他</option>
+                    <option value="9">焦点</option>
+                </select>
+                
+                <button class="refresh-btn" id="refreshBtn">
+                    <i class="fas fa-sync-alt" id="refreshIcon"></i> 刷新数据
+                </button>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="totalItems">0</div>
+                <div class="stat-label">总项目数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="lastUpdate">--:--</div>
+                <div class="stat-label">最后更新时间</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="visibleItems">0</div>
+                <div class="stat-label">显示项目</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="updatedItems">0</div>
+                <div class="stat-label">原文链接更新项目</div>
+            </div>
+        </div>
+        
+        <div class="content-list" id="contentList">
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin"></i> 正在加载数据...
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>数据来源: 新浪财经直播API | 本页面仅用于展示目的</p>
+        </div>
+    </footer>
+
+    <script>
+        // API endpoint
+        const API_BASE = 'https://zhibo.sina.com.cn/api/zhibo/feed';
+        const API_PARAMS = '?zhibo_id=152&tag=0&page=1&pagesize=100&dire=f&dpc=1&type=0';
+        const API_ENDPOINT = API_BASE + API_PARAMS;
+        
+        // Connection methods list - try direct first, then CORS proxies in order
+        const CONNECTION_METHODS = [
+            { name: "direct", url: url => url, isDirect: true },
+            { name: "corsproxy.io", url: url => `https://corsproxy.io/?${encodeURIComponent(url)}`, isDirect: false },
+            { name: "cors.lol", url: url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`, isDirect: false },
+        ];
+
+        // Global variables
+        let allItems = [];
+        let lastUpdateTime = null;
+        let refreshInterval = null;
+        let isFirstLoad = true;
+        let currentSearch = '';
+        let currentType = 'all';
+        let currentMethodIndex = 0; // 从直连开始
+        
+        // DOM elements
+        const contentList = document.getElementById('contentList');
+        const searchInput = document.getElementById('searchInput');
+        const typeFilter = document.getElementById('typeFilter');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const refreshIcon = document.getElementById('refreshIcon');
+        const errorMessage = document.getElementById('errorMessage');
+        const totalItemsEl = document.getElementById('totalItems');
+        const lastUpdateEl = document.getElementById('lastUpdate');
+        const visibleItemsEl = document.getElementById('visibleItems');
+        const updatedItemsEl = document.getElementById('updatedItems');
+        const globalLoading = document.getElementById('globalLoading');
+        
+        // Initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchData();
+            setupEventListeners();
+            startAutoRefresh();
+        });
+        
+        // Set up event listeners
+        function setupEventListeners() {
+            searchInput.addEventListener('input', function() {
+                currentSearch = this.value.toLowerCase();
+                filterContent();
+            });
+            
+            typeFilter.addEventListener('change', function() {
+                currentType = this.value;
+                filterContent();
+            });
+            
+            refreshBtn.addEventListener('click', fetchData);
+        }
+        
+        // Fetch with timeout
+        function fetchWithTimeout(url, options = {}, timeout = 10000) {
+            return Promise.race([
+                fetch(url, { 
+                    ...options,
+                    mode: options.mode || 'cors'
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('请求超时')), timeout)
+                )
+            ]);
+        }
+        
+        // Try multiple connection methods to fetch data
+        async function fetchWithFallback(url) {
+            let lastError = null;
+            let attempts = 0;
+            const totalMethods = CONNECTION_METHODS.length;
+            
+            // Loop until data is fetched successfully
+            while (true) {
+                const methodIndex = (currentMethodIndex + attempts) % totalMethods;
+                const method = CONNECTION_METHODS[methodIndex];
+                const targetUrl = method.url(url);
+                
+                try {
+                    console.log(`[${new Date().toLocaleTimeString()}] 尝试使用 ${method.name} (${methodIndex + 1}/${totalMethods}): ${targetUrl}`);
+                    
+                    const fetchOptions = {
+                        timeout: 10000,
+                        mode: method.isDirect ? 'cors' : 'cors'
+                    };
+                    
+                    const response = await fetchWithTimeout(targetUrl, fetchOptions);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误! 状态: ${response.status}`);
+                    }
+                    
+                    // On success, update the current method index
+                    currentMethodIndex = (methodIndex + 1) % totalMethods;
+                    return await response.json();
+                } catch (error) {
+                    console.warn(`[${new Date().toLocaleTimeString()}] ${method.name} 失败:`, error.message);
+                    lastError = error;
+                    
+                    // Track attempt count
+                    attempts++;
+                    
+                    // If all methods have been tried once, log a warning
+                    if (attempts % totalMethods === 0 && attempts > 0) {
+                        console.warn(`[${new Date().toLocaleTimeString()}] 已完成第 ${attempts/totalMethods} 轮尝试，所有连接方式均失败`);
+                    }
+                    
+                    // Wait briefly before trying the next method
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                }
+            }
+        }
+        
+        // Fetch data
+        async function fetchData() {
+            try {
+                setRefreshingState(true);
+                showGlobalLoading();
+                hideError();
+                
+                const data = await fetchWithFallback(API_ENDPOINT);
+                processData(data);
+            } catch (error) {
+                showError(`获取数据失败: ${error.message}。正在继续尝试其他连接方式...`);
+            } finally {
+                setRefreshingState(false);
+                hideGlobalLoading();
+            }
+        }
+        
+        // Process data
+        function processData(data) {
+            if (data.result && data.result.status.code === 0) {
+                const newItems = data.result.data.feed.list;
+                
+                // Merge new data and keep existing content
+                const { addedItems, updatedItems } = mergeItems(newItems);
+                
+                lastUpdateTime = new Date();
+                updateStats(addedItems.length, updatedItems.length);
+                
+                if (isFirstLoad) {
+                    renderContent(allItems);
+                    isFirstLoad = false;
+                } else {
+                    // Filter new items based on current criteria
+                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType);
+                    if (filteredNewItems.length > 0) {
+                        renderNewItems(filteredNewItems);
+                    }
+                    
+                    // Update existing items
+                    if (updatedItems.length > 0) {
+                        updateExistingItems(updatedItems);
+                    }
+                }
+            } else {
+                showError('API返回的数据格式不正确');
+            }
+        }
+        
+        // Merge new items into the existing list
+        function mergeItems(newItems) {
+            const addedItems = [];
+            const updatedItems = [];
+            
+            // Filter out existing items
+            for (const newItem of newItems) {
+                const existingIndex = allItems.findIndex(item => item.id === newItem.id);
+                
+                if (existingIndex === -1) {
+                    // New item
+                    addedItems.push(newItem);
+                } else {
+                    // Update item
+                    const existingItem = allItems[existingIndex];
+                    
+                    // Check for changes
+                    const hasChanges = 
+                        JSON.stringify(existingItem.rich_text) !== JSON.stringify(newItem.rich_text) ||
+                        JSON.stringify(existingItem.docurl) !== JSON.stringify(newItem.docurl) ||
+                        JSON.stringify(existingItem.tag) !== JSON.stringify(newItem.tag);
+                    
+                    if (hasChanges) {
+                        // Update item properties
+                        allItems[existingIndex] = {
+                            ...existingItem,
+                            rich_text: newItem.rich_text,
+                            docurl: newItem.docurl,
+                            tag: newItem.tag
+                        };
+                        updatedItems.push(allItems[existingIndex]);
+                    }
+                }
+            }
+            
+            // Add new items to the top (latest first)
+            allItems = [...addedItems, ...allItems];
+            
+            // Keep at most 100 items
+            if (allItems.length > 100) {
+                allItems = allItems.slice(0, 100);
+            }
+            
+            return { addedItems, updatedItems };
+        }
+        
+        // Filter items by criteria
+        function filterItemsByCriteria(items, searchText, selectedType) {
+            return items.filter(item => {
+                const matchesSearch = item.rich_text.toLowerCase().includes(searchText);
+                const matchesType = selectedType === 'all' || item.tag.some(t => t.id.toString() === selectedType);
+                return matchesSearch && matchesType;
+            });
+        }
+        
+        // Render content
+        function renderContent(items) {
+            if (items.length === 0) {
+                contentList.innerHTML = '<div class="loading">没有找到匹配的内容</div>';
+                return;
+            }
+            
+            contentList.innerHTML = items.map(item => createContentItem(item)).join('');
+        }
+        
+        // Render new items
+        function renderNewItems(items) {
+            if (items.length === 0) return;
+            
+            const newContent = items.map(item => createContentItem(item)).join('');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newContent;
+            
+            // 将新元素添加到列表顶部
+            Array.from(tempDiv.children).forEach(element => {
+                contentList.insertBefore(element, contentList.firstChild);
+            });
+        }
+        
+        // Update existing items
+        function updateExistingItems(items) {
+            items.forEach(item => {
+                const existingElement = document.querySelector(`.content-item[data-id="${item.id}"]`);
+                if (existingElement) {
+                    // Replace the entire element
+                    const newElement = createElementFromHTML(createContentItem(item));
+                    existingElement.parentNode.replaceChild(newElement, existingElement);
+                }
+            });
+        }
+        
+        // Create element from HTML string
+        function createElementFromHTML(htmlString) {
+            const div = document.createElement('div');
+            div.innerHTML = htmlString.trim();
+            return div.firstChild;
+        }
+        
+        // Create a single content item
+        function createContentItem(item) {
+            const hasDocUrl = item.docurl && item.docurl.trim() !== '';
+            const buttonClass = hasDocUrl ? 'action-btn' : 'action-btn disabled';
+            const onClick = hasDocUrl ? `openDocUrl('${getDocUrl(item)}')` : '';
+            
+            // Check whether to highlight (ID is 9)
+            const isHighlight = item.tag.some(t => t.id == 9);
+            const textClass = isHighlight ? 'content-text highlight-text' : 'content-text';
+            
+            return `
+                <div class="content-item" data-id="${item.id}">
+                    <div class="content-header">
+                        <span class="content-id">ID: ${item.id}</span>
+                        <span class="content-time">${formatTime(item.create_time)}</span>
+                    </div>
+                    <div class="${textClass}">
+                        ${item.rich_text}
+                    </div>
+                    <div class="content-footer">
+                        <div class="content-tags">
+                            ${item.tag.map(t => `<span class="tag">${t.name}</span>`).join('')}
+                        </div>
+                        <div class="content-actions">
+                            <button class="${buttonClass}" ${onClick ? `onclick="${onClick}"` : ''}>
+                                <i class="fas fa-external-link-alt"></i> 原文
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Open document URL
+        function openDocUrl(url) {
+            if (url) {
+                window.open(url, '_blank');
+            }
+        }
+        
+        // Get document URL (convert mobile link to PC link)
+        function getDocUrl(item) {
+            // Prefer item.docurl
+            if (item.docurl && item.docurl.trim() !== '') {
+                let url = item.docurl;
+                // Replace domain and path format
+                url = url.replace('//finance.sina.cn', '//finance.sina.com.cn')
+                        .replace('/detail-', '/doc-')
+                        .replace('.d.html', '.shtml');
+                return url;
+            }
+            
+            return null;
+        }
+        
+        // Filter content
+        function filterContent() {
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            
+            updateVisibleStats(filteredItems.length);
+            renderContent(filteredItems);
+        }
+        
+        // Update stats
+        function updateStats(addedCount = 0, updatedCount = 0) {
+            totalItemsEl.textContent = allItems.length;
+            lastUpdateEl.textContent = lastUpdateTime ? lastUpdateTime.toLocaleTimeString() : '--:--';
+            updatedItemsEl.textContent = updatedCount;
+            
+            // Update visible item count
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            visibleItemsEl.textContent = filteredItems.length;
+        }
+        
+        // Update visible item stats
+        function updateVisibleStats(count) {
+            visibleItemsEl.textContent = count;
+        }
+        
+        // Set refresh state
+        function setRefreshingState(refreshing) {
+            if (refreshing) {
+                refreshIcon.classList.add('refreshing');
+                refreshBtn.disabled = true;
+            } else {
+                refreshIcon.classList.remove('refreshing');
+                refreshBtn.disabled = false;
+            }
+        }
+        
+        // Show global loading indicator
+        function showGlobalLoading() {
+            if (!isFirstLoad) {
+                globalLoading.style.display = 'block';
+            }
+        }
+        
+        // Hide global loading indicator
+        function hideGlobalLoading() {
+            globalLoading.style.display = 'none';
+        }
+        
+        // Show error
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+        
+        // Hide error
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+        
+        // Format time
+        function formatTime(timeString) {
+            try {
+                const date = new Date(timeString);
+                return date.toLocaleString('zh-CN');
+            } catch (e) {
+                return timeString;
+            }
+        }
+        
+        // Auto-refresh
+        function startAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            
+            refreshInterval = setInterval(fetchData, 5000); // Refresh every 5 seconds
+        }
+    </script>
+</body>
+</html>
