@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <!-- Written based on Deepseek R1 thru Tencent Yuanbao on Tuesday, 16 September 2025 -->
+    <!-- Edited by GPT-5.2-Codex from Tuesday, 10 February 2026 -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新浪财经7*24小时全球实时财经新闻直播</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
+    <link rel="manifest" href="./site.webmanifest">
+    <!--
+
+    http://favicon.io/emoji-favicons/chart-increasing-with-yen/
+
+    This favicon was generated using the following graphics from Twitter Twemoji:
+
+    - Graphics Title: 1f4b9.svg
+    - Graphics Author: Copyright 2020 Twitter, Inc and other contributors (https://github.com/twitter/twemoji)
+    - Graphics Source: https://github.com/twitter/twemoji/blob/master/assets/svg/1f4b9.svg
+    - Graphics License: CC-BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+    
+    -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #2c3e50, #4a69bd);
+            color: white;
+            padding: 20px 0;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .search-box {
+            flex: 1;
+            max-width: 400px;
+            position: relative;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 1px solid #ddd;
+            border-radius: 30px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #4a69bd;
+            box-shadow: 0 0 0 2px rgba(74, 105, 189, 0.2);
+        }
+        
+        .search-box i {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #888;
+        }
+        
+        .filter-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        select {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: white;
+            font-size: 14px;
+        }
+        
+        .refresh-btn {
+            background-color: #4a69bd;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.3s;
+        }
+        
+        .refresh-btn:hover:not(:disabled) {
+            background-color: #3c5aa8;
+        }
+        
+        .refresh-btn:disabled {
+            background-color: #8da6e0;
+            cursor: not-allowed;
+        }
+        
+        .refreshing {
+            animation: rotate 1s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4a69bd;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #777;
+        }
+        
+        .content-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .content-item {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .content-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        
+        .content-id {
+            font-size: 14px;
+            color: #777;
+            background-color: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .content-time {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        .content-text {
+            font-size: 16px;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .content-media {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 0 0 15px;
+        }
+
+        .content-image {
+            max-width: 120px;
+            max-height: 120px;
+            width: auto;
+            height: auto;
+            border-radius: 6px;
+            cursor: zoom-in;
+            transition: box-shadow 0.2s ease;
+            object-fit: contain;
+            background-color: #f5f7fa;
+        }
+
+        .content-image.is-expanded {
+            max-width: none;
+            max-height: none;
+            cursor: zoom-out;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+        
+        .highlight-text {
+            color: red !important;
+            font-weight: bold;
+        }
+        
+        .content-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        
+        .content-tags {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .tag {
+            background-color: #eaf0ff;
+            color: #4a69bd;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        
+        .content-actions {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .action-btn {
+            background: none;
+            border: none;
+            color: #777;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+            transition: color 0.3s;
+            padding: 6px 12px;
+            border-radius: 4px;
+            background-color: #f1f5f9;
+        }
+        
+        .action-btn:hover {
+            color: #4a69bd;
+            background-color: #eaf0ff;
+        }
+
+        .attr-btn {
+            background-color: #f1f5f9;
+        }
+        
+        .action-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #f9f9f9;
+        }
+        
+        .action-btn.disabled:hover {
+            color: #777;
+            background-color: #f9f9f9;
+        }
+
+        .attr-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .attr-modal.is-open {
+            display: flex;
+        }
+
+        .attr-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+        }
+
+        .attr-modal__content {
+            position: relative;
+            width: min(1000px, 92vw);
+            max-height: 85vh;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .attr-modal__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .attr-modal__header h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .attr-modal__close {
+            border: none;
+            background: none;
+            font-size: 22px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .attr-modal__body {
+            padding: 18px;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .attr-section__title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .attr-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .attr-table th,
+        .attr-table td {
+            text-align: left;
+            border: 1px solid #e2e8f0;
+            padding: 6px 8px;
+            vertical-align: top;
+        }
+
+        .attr-table th {
+            background: #f8fafc;
+            font-weight: 600;
+        }
+
+        .attr-table pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 11px;
+        }
+
+        .attr-raw {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 30px;
+            font-size: 18px;
+            color: #777;
+        }
+
+        .load-more {
+            text-align: center;
+            padding: 20px 0 40px;
+            color: #777;
+            font-size: 14px;
+        }
+        
+        .error {
+            background-color: #ffebee;
+            color: #d32f2f;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .global-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #4a69bd;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .global-loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 50%;
+            background-color: #3c5aa8;
+            animation: loading 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes loading {
+            0% { left: -50%; }
+            100% { left: 150%; }
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #777;
+            border-top: 1px solid #eee;
+        }
+        
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .search-box {
+                max-width: 100%;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .content-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .content-footer {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+            
+            .content-actions {
+                align-self: stretch;
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="global-loading" id="globalLoading"></div>
+    
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <h1><i class="fas fa-broadcast-tower"></i> 新浪财经7*24小时全球实时财经新闻直播</h1>
+                <div>
+                    <span>自动刷新已启用 (60秒)</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="error" id="errorMessage"></div>
+        
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索直播内容...">
+                <i class="fas fa-search"></i>
+            </div>
+            
+            <div class="filter-box">
+                <select id="typeFilter">
+                    <option value="all">全部</option>
+                    <option value="10">A股</option>
+                    <option value="1">宏观</option>
+                    <option value="3">公司</option>
+                    <option value="4">数据</option>
+                    <option value="5">市场</option>
+                    <option value="102">国际</option>
+                    <option value="6">观点</option>
+                    <option value="7">央行</option>
+                    <option value="8">其他</option>
+                    <option value="9">焦点</option>
+                </select>
+                
+                <button class="refresh-btn" id="refreshBtn">
+                    <i class="fas fa-sync-alt" id="refreshIcon"></i> 刷新数据
+                </button>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="totalItems">0</div>
+                <div class="stat-label">总项目数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="lastUpdate">--:--</div>
+                <div class="stat-label">最后更新时间</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="visibleItems">0</div>
+                <div class="stat-label">显示项目</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="updatedItems">0</div>
+                <div class="stat-label">原文链接更新项目</div>
+            </div>
+        </div>
+        
+        <div class="content-list" id="contentList">
+        </div>
+        <div class="load-more" id="loadMoreSentinel">
+            <span id="loadMoreStatus"><i class="fas fa-spinner fa-spin"></i></span>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>数据来源: 新浪财经直播API | 本页面仅用于展示目的</p>
+        </div>
+    </footer>
+    
+    <div class="attr-modal" id="attrModal" aria-hidden="true">
+        <div class="attr-modal__backdrop" id="attrModalBackdrop"></div>
+        <div class="attr-modal__content" role="dialog" aria-modal="true" aria-labelledby="attrModalTitle">
+            <div class="attr-modal__header">
+                <h3 id="attrModalTitle">全部属性</h3>
+                <button class="attr-modal__close" id="attrModalClose" aria-label="Close">×</button>
+            </div>
+            <div class="attr-modal__body">
+                <div class="attr-section">
+                    <div class="attr-section__title">字段含义（推测）</div>
+                    <table class="attr-table">
+                        <thead>
+                            <tr>
+                                <th>字段</th>
+                                <th>值</th>
+                                <th>含义</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attrTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="attr-section">
+                    <div class="attr-section__title">原始 JSON</div>
+                    <pre class="attr-raw" id="attrRaw"></pre>
+                </div>
+                <div class="attr-section" id="attrExtSection" hidden>
+                    <div class="attr-section__title">ext 解析</div>
+                    <pre class="attr-raw" id="attrExt"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API endpoint
+        const API_BASE = 'https://zhibo.sina.com.cn/api/zhibo/feed';
+        const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&page_size=100&type=0';
+        
+        function buildApiUrl(page) {
+            return `${API_BASE}?${API_DEFAULT_PARAMS}&page=${page}`;
+        }
+        
+        // Connection methods list - try direct first, then CORS proxies in order
+        const CONNECTION_METHODS = [
+            { name: "direct", url: url => url, isDirect: true },
+            { name: "corsproxy.io", url: url => `https://corsproxy.io/?${encodeURIComponent(url)}`, isDirect: false },
+            { name: "cors.lol", url: url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`, isDirect: false },
+        ];
+
+        // Global variables
+        let allItems = [];
+        let itemsById = new Map();
+        let lastUpdateTime = null;
+        let refreshInterval = null;
+        let isFirstLoad = true;
+        let currentSearch = '';
+        let currentType = 'all';
+        let currentMethodIndex = 0; // Start from direct
+        let currentPage = 1;
+        let maxPage = null;
+        let isLoadingMore = false;
+        let hasMorePages = true;
+        
+        // DOM elements
+        const contentList = document.getElementById('contentList');
+        const searchInput = document.getElementById('searchInput');
+        const typeFilter = document.getElementById('typeFilter');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const refreshIcon = document.getElementById('refreshIcon');
+        const errorMessage = document.getElementById('errorMessage');
+        const totalItemsEl = document.getElementById('totalItems');
+        const lastUpdateEl = document.getElementById('lastUpdate');
+        const visibleItemsEl = document.getElementById('visibleItems');
+        const updatedItemsEl = document.getElementById('updatedItems');
+        const globalLoading = document.getElementById('globalLoading');
+        const loadMoreSentinel = document.getElementById('loadMoreSentinel');
+        const loadMoreStatus = document.getElementById('loadMoreStatus');
+        const attrModal = document.getElementById('attrModal');
+        const attrModalBackdrop = document.getElementById('attrModalBackdrop');
+        const attrModalClose = document.getElementById('attrModalClose');
+        const attrTableBody = document.getElementById('attrTableBody');
+        const attrRaw = document.getElementById('attrRaw');
+        const attrExt = document.getElementById('attrExt');
+        const attrExtSection = document.getElementById('attrExtSection');
+        
+        // Initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchData();
+            setupEventListeners();
+            startAutoRefresh();
+            setupInfiniteScroll();
+            setupAttributeModal();
+        });
+        
+        // Set up event listeners
+        function setupEventListeners() {
+            searchInput.addEventListener('input', function() {
+                currentSearch = this.value.toLowerCase();
+                filterContent();
+            });
+            
+            typeFilter.addEventListener('change', function() {
+                currentType = this.value;
+                filterContent();
+            });
+            
+            refreshBtn.addEventListener('click', fetchData);
+        }
+        
+        // Fetch with timeout
+        function fetchWithTimeout(url, options = {}, timeout = 10000) {
+            return Promise.race([
+                fetch(url, { 
+                    ...options,
+                    mode: options.mode || 'cors'
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('请求超时')), timeout)
+                )
+            ]);
+        }
+        
+        // Try multiple connection methods to fetch data
+        async function fetchWithFallback(url, { page, purpose } = {}) {
+            let lastError = null;
+            let attempts = 0;
+            const totalMethods = CONNECTION_METHODS.length;
+            
+            // Loop until data is fetched successfully
+            while (true) {
+                const methodIndex = (currentMethodIndex + attempts) % totalMethods;
+                const method = CONNECTION_METHODS[methodIndex];
+                const targetUrl = method.url(url);
+                
+                try {
+                    const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
+                    console.info(`[${new Date().toLocaleTimeString()}] Fetch ${contextLabel} via ${method.name} (${methodIndex + 1}/${totalMethods})`);
+                    
+                    const fetchOptions = {
+                        timeout: 10000,
+                        mode: method.isDirect ? 'cors' : 'cors'
+                    };
+                    
+                    const response = await fetchWithTimeout(targetUrl, fetchOptions);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error ${response.status}`);
+                    }
+                    
+                    // On success, update the current method index
+                    currentMethodIndex = (methodIndex + 1) % totalMethods;
+                    return await response.json();
+                } catch (error) {
+                    const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
+                    console.warn(`[${new Date().toLocaleTimeString()}] Failed ${contextLabel} via ${method.name}: ${error.message}`);
+                    lastError = error;
+                    
+                    // Track attempt count
+                    attempts++;
+                    
+                    // If all methods have been tried once, log a warning
+                    if (attempts % totalMethods === 0 && attempts > 0) {
+                        const rounds = attempts / totalMethods;
+                        console.warn(`[${new Date().toLocaleTimeString()}] All methods failed for ${contextLabel}. Retrying (round ${rounds})...`);
+                    }
+                    
+                    // Wait briefly before trying the next method
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                }
+            }
+        }
+        
+        // Fetch data
+        async function fetchData() {
+            try {
+                setRefreshingState(true);
+                showGlobalLoading();
+                hideError();
+                
+                const data = await fetchWithFallback(buildApiUrl(1), { page: 1, purpose: 'latest' });
+                processData(data, { page: 1, mode: 'prepend' });
+            } catch (error) {
+                showError(`获取数据失败: ${error.message}。正在继续尝试其他连接方式...`);
+            } finally {
+                setRefreshingState(false);
+                hideGlobalLoading();
+            }
+        }
+        
+        // Process data
+        function processData(data, { page, mode }) {
+            if (data.result && data.result.status.code === 0) {
+                const newItems = data.result.data.feed.list;
+                const pageInfo = data.result.data.feed.page_info;
+                
+                if (pageInfo && typeof pageInfo.totalPage === 'number') {
+                    maxPage = pageInfo.totalPage;
+                    hasMorePages = currentPage < maxPage;
+                }
+                
+                // Merge new data and keep existing content
+                const { addedItems, updatedItems } = mergeItems(newItems, { prepend: mode === 'prepend' });
+                
+                lastUpdateTime = new Date();
+                updateStats(addedItems.length, updatedItems.length);
+                
+                if (isFirstLoad) {
+                    renderContent(allItems);
+                    isFirstLoad = false;
+                } else {
+                    // Filter new items based on current criteria
+                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType);
+                    if (filteredNewItems.length > 0) {
+                        if (mode === 'prepend') {
+                            renderNewItems(filteredNewItems);
+                        } else {
+                            renderOlderItems(filteredNewItems);
+                        }
+                    }
+                    
+                    // Update existing items
+                    if (updatedItems.length > 0) {
+                        updateExistingItems(updatedItems);
+                    }
+                }
+                
+                return { addedItems, updatedItems };
+            } else {
+                showError('API返回的数据格式不正确');
+                return { addedItems: [], updatedItems: [] };
+            }
+        }
+        
+        // Merge new items into the existing list
+        function mergeItems(newItems, { prepend = false } = {}) {
+            const addedItems = [];
+            const updatedItems = [];
+            
+            // Filter out existing items
+            for (const newItem of newItems) {
+                const existingItem = itemsById.get(newItem.id);
+                
+                if (!existingItem) {
+                    // New item
+                    const storedItem = { ...newItem };
+                    itemsById.set(newItem.id, storedItem);
+                    addedItems.push(storedItem);
+                } else {
+                    // Update item
+                    // Check for changes
+                    const hasChanges = 
+                        JSON.stringify(existingItem.rich_text) !== JSON.stringify(newItem.rich_text) ||
+                        JSON.stringify(existingItem.docurl) !== JSON.stringify(newItem.docurl) ||
+                        JSON.stringify(existingItem.tag) !== JSON.stringify(newItem.tag);
+                    
+                    if (hasChanges) {
+                        // Update item properties
+                        existingItem.rich_text = newItem.rich_text;
+                        existingItem.docurl = newItem.docurl;
+                        existingItem.tag = newItem.tag;
+                        updatedItems.push(existingItem);
+                    }
+                }
+            }
+            
+            // Add new items to the top or bottom
+            if (addedItems.length > 0) {
+                allItems = prepend ? [...addedItems, ...allItems] : [...allItems, ...addedItems];
+            }
+            
+            return { addedItems, updatedItems };
+        }
+        
+        // Filter items by criteria
+        function filterItemsByCriteria(items, searchText, selectedType) {
+            return items.filter(item => {
+                const matchesSearch = item.rich_text.toLowerCase().includes(searchText);
+                const matchesType = selectedType === 'all' || item.tag.some(t => t.id.toString() === selectedType);
+                return matchesSearch && matchesType;
+            });
+        }
+        
+        // Render content
+        function renderContent(items) {
+            if (items.length === 0) {
+                contentList.innerHTML = '<div class="loading">没有找到匹配的内容</div>';
+                return;
+            }
+            
+            contentList.innerHTML = items.map(item => createContentItem(item)).join('');
+        }
+        
+        // Render new items
+        function renderNewItems(items) {
+            if (items.length === 0) return;
+            
+            const newContent = items.map(item => createContentItem(item)).join('');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newContent;
+            
+            // Add new elements to the top of the list
+            Array.from(tempDiv.children).forEach(element => {
+                contentList.insertBefore(element, contentList.firstChild);
+            });
+        }
+
+        // Render older items at the bottom
+        function renderOlderItems(items) {
+            if (items.length === 0) return;
+            
+            const newContent = items.map(item => createContentItem(item)).join('');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newContent;
+            
+            Array.from(tempDiv.children).forEach(element => {
+                contentList.appendChild(element);
+            });
+        }
+        
+        // Update existing items
+        function updateExistingItems(items) {
+            items.forEach(item => {
+                const existingElement = document.querySelector(`.content-item[data-id="${item.id}"]`);
+                if (existingElement) {
+                    // Replace the entire element
+                    const newElement = createElementFromHTML(createContentItem(item));
+                    existingElement.parentNode.replaceChild(newElement, existingElement);
+                }
+            });
+        }
+        
+        // Create element from HTML string
+        function createElementFromHTML(htmlString) {
+            const div = document.createElement('div');
+            div.innerHTML = htmlString.trim();
+            return div.firstChild;
+        }
+        
+        // Create a single content item
+        function createContentItem(item) {
+            const hasDocUrl = item.docurl && item.docurl.trim() !== '';
+            const buttonClass = hasDocUrl ? 'action-btn' : 'action-btn disabled';
+            const onClick = hasDocUrl ? `openDocUrl('${getDocUrl(item)}')` : '';
+            
+            // Check whether to highlight (ID is 9)
+            const isHighlight = item.tag.some(t => t.id == 9);
+            const textClass = isHighlight ? 'content-text highlight-text' : 'content-text';
+            
+            const imageUrls = Array.isArray(item.multimedia?.img_url) ? item.multimedia.img_url : [];
+            const mediaHtml = imageUrls.length > 0
+                ? `<div class="content-media">
+                        ${imageUrls.map(url => `<img class="content-image" src="${url}" alt="">`).join('')}
+                   </div>`
+                : '';
+            
+            return `
+                <div class="content-item" data-id="${item.id}">
+                    <div class="content-header">
+                        <span class="content-id">ID: ${item.id}</span>
+                        <span class="content-time">${formatTime(item.create_time)}</span>
+                    </div>
+                    <div class="${textClass}">
+                        ${item.rich_text}
+                    </div>
+                    ${mediaHtml}
+                    <div class="content-footer">
+                        <div class="content-tags">
+                            ${item.tag.map(t => `<span class="tag">${t.name}</span>`).join('')}
+                        </div>
+                        <div class="content-actions">
+                            <button class="action-btn attr-btn" data-action="attrs">全部属性</button>
+                            <button class="${buttonClass}" ${onClick ? `onclick="${onClick}"` : ''}>
+                                <i class="fas fa-external-link-alt"></i> 原文
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Open document URL
+        function openDocUrl(url) {
+            if (url) {
+                window.open(url, '_blank');
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            const img = event.target.closest('.content-image');
+            if (!img) return;
+            img.classList.toggle('is-expanded');
+        });
+        
+        // Get document URL (convert mobile link to PC link)
+        function getDocUrl(item) {
+            // Prefer item.docurl
+            if (item.docurl && item.docurl.trim() !== '') {
+                let url = item.docurl;
+                // Replace domain and path format
+                url = url.replace('//finance.sina.cn', '//finance.sina.com.cn')
+                        .replace('/detail-', '/doc-')
+                        .replace('.d.html', '.shtml');
+                return url;
+            }
+            
+            return null;
+        }
+
+        const FIELD_MEANINGS = {
+            id: '唯一条目ID',
+            zhibo_id: '直播间ID',
+            type: '内容类型代码',
+            rich_text: '正文内容（富文本）',
+            multimedia: '多媒体内容（字符串或对象）',
+            'multimedia.img_url[]': '图片URL列表',
+            commentid: '评论系统ID',
+            compere_id: '主持人/主播ID',
+            creator: '创建者账号',
+            mender: '最后编辑账号',
+            create_time: '创建时间',
+            update_time: '更新时间',
+            is_need_check: '是否需要审核',
+            check_time: '审核时间',
+            check_status: '审核状态',
+            check_user: '审核人账号',
+            is_delete: '是否删除',
+            top_value: '置顶权重/优先级',
+            is_focus: '是否焦点',
+            source_content_id: '来源内容ID',
+            anchor_image_url: '主播图片URL',
+            anchor: '主播名称',
+            ext: '扩展JSON字符串（需解析）',
+            ext_parsed: '解析后的ext对象',
+            'ext_parsed.docurl': '文档URL（来自ext）',
+            'ext_parsed.docid': '文档ID（来自ext）',
+            'ext_parsed.stocks': '关联标的列表',
+            'ext_parsed.stocks[].market': '标的市场',
+            'ext_parsed.stocks[].symbol': '标的代码',
+            'ext_parsed.stocks[].key': '标的关键词/名称',
+            'ext_parsed.stocks[].sym_party_status': '标的党派状态（推测）',
+            'ext_parsed.needPushWB': '是否推送微博',
+            'ext_parsed.needCMSLink': '是否生成CMS链接',
+            'ext_parsed.needCalender': '是否关联日历',
+            old_live_cid: '旧版内容ID',
+            tab: 'Tab名称',
+            is_repeat: '是否重复',
+            'tag[]': '标签列表',
+            'tag[].id': '标签ID',
+            'tag[].name': '标签名称',
+            like_nums: '点赞数',
+            comment_list: '评论概览',
+            'comment_list.total': '评论总数',
+            'comment_list.thread_show': '是否显示线程',
+            'comment_list.qreply': '问答回复数',
+            'comment_list.qreply_show': '问答回复显示标记',
+            'comment_list.show': '评论显示标记',
+            'comment_list.list[]': '评论列表',
+            'comment_list.list[].mid': '评论ID',
+            'comment_list.list[].comment_mid': '父评论ID',
+            'comment_list.list[].channel': '评论频道',
+            'comment_list.list[].newsid': '新闻ID',
+            'comment_list.list[].news_mid': '新闻消息ID',
+            'comment_list.list[].channel_source': '来源频道',
+            'comment_list.list[].newsid_source': '来源新闻ID',
+            'comment_list.list[].news_mid_source': '来源新闻消息ID',
+            'comment_list.list[].status': '审核状态',
+            'comment_list.list[].time': '评论时间',
+            'comment_list.list[].agree': '赞同数',
+            'comment_list.list[].score': '评分',
+            'comment_list.list[].hot': '热度',
+            'comment_list.list[].against': '反对数',
+            'comment_list.list[].length': '内容长度',
+            'comment_list.list[].rank': '排序/排名',
+            'comment_list.list[].vote': '投票数',
+            'comment_list.list[].level': '层级',
+            'comment_list.list[].parent': '父线程ID',
+            'comment_list.list[].parent_mid': '父评论MID',
+            'comment_list.list[].thread': '线程ID',
+            'comment_list.list[].thread_mid': '线程MID',
+            'comment_list.list[].uid': '用户ID',
+            'comment_list.list[].nick': '用户昵称',
+            'comment_list.list[].usertype': '用户类型',
+            'comment_list.list[].content': '评论内容',
+            'comment_list.list[].ip': 'IP地址',
+            'comment_list.list[].config': '配置字符串',
+            'comment_list.list[].profile_img': '用户头像URL',
+            'comment_list.list[].parent_uid': '父用户ID',
+            'comment_list.list[].parent_nick': '父用户昵称',
+            'comment_list.list[].parent_profile_img': '父用户头像URL',
+            'comment_list.list[].area': '用户地区',
+            'comment_list.list[].status_uid': '状态用户ID',
+            'comment_list.list[].comment_imgs': '评论图片',
+            'comment_list.list[].status_cmnt_mid': '状态评论MID',
+            'comment_list.list[].import_type': '导入类型',
+            'comment_list.list[].media_type': '媒体类型',
+            'comment_list.list[].audio': '音频URL',
+            'comment_list.list[].video': '视频URL',
+            'comment_list.list[].openid': 'OpenID',
+            'comment_list.list[].login_type': '登录类型',
+            'comment_list.list[].batch_type': '批处理类型',
+            'comment_list.list[].check_type': '检查类型',
+            'comment_list.list[].status_show': '状态显示标记',
+            'comment_list.list[].code': '状态码',
+            'comment_list.list[].layer': '层级编号',
+            'comment_list.list[].show_loc': '显示位置标记',
+            'comment_list.list[].top_desc': '置顶描述',
+            'comment_list.list[].thread2': '次级线程ID',
+            'comment_list.list[].status2': '次级状态',
+            'comment_list.list[].content_ext': '评论扩展内容',
+            'comment_list.list[].content_ext.reply': '回复数',
+            'comment_list.list[].content_ext.weibourl': '微博链接',
+            'comment_list.list[].content_ext.videoinfo': '视频信息',
+            'comment_list.list[].is_hot': '是否热门',
+            'comment_list.list[].is_top': '是否置顶',
+            'comment_list.list[].parent_new': '父级新标记',
+            'comment_list.list[].count_layer': '层级计数',
+            'comment_list.list[].did': '设备ID',
+            'comment_list.list[].is_agree': '是否赞同',
+            'comment_list.list[].has_my': '是否包含我的数据',
+            docurl: '移动端文档URL',
+            rich_text_nick_to_url: '昵称到URL映射',
+            rich_text_nick_to_routeUri: '昵称到路由URI映射',
+            compere_info: '主播/主持人信息'
+        };
+
+        function normalizePath(path) {
+            return path.replace(/\[\d+\]/g, '[]');
+        }
+
+        function inferMeaning(path, value) {
+            const normalizedPath = normalizePath(path);
+            if (FIELD_MEANINGS[normalizedPath]) return FIELD_MEANINGS[normalizedPath];
+
+            const key = normalizedPath.split('.').pop();
+            if (!key) return '根节点值';
+            if (/_time$/.test(key)) return '时间戳';
+            if (/_id$/.test(key) || key === 'id') return '标识符';
+            if (/^is_/.test(key) || /_flag$/.test(key)) return '布尔标记';
+            if (/num|count|total|size|page/i.test(key)) return '数量/大小';
+            if (/url/i.test(key)) return 'URL';
+            if (/name|nick/i.test(key)) return '名称/标签';
+            if (/status/i.test(key)) return '状态码/状态标记';
+            if (/type/i.test(key)) return '类型代码';
+            if (/list/i.test(key)) return '列表/数组';
+            if (/img|image/.test(key)) return '图片URL或图片数据';
+            if (/time/.test(key)) return '时间值';
+            if (typeof value === 'boolean') return '布尔值';
+            if (typeof value === 'number') return '数值';
+            if (typeof value === 'string') return '文本';
+            return '未文档化，基于上下文推测';
+        }
+
+        function parseExtValue(ext) {
+            if (typeof ext !== 'string' || ext.trim() === '') return null;
+            try {
+                return JSON.parse(ext);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function buildDisplayItem(item) {
+            const displayItem = { ...item };
+            const parsedExt = parseExtValue(item.ext);
+            if (parsedExt) {
+                displayItem.ext_parsed = parsedExt;
+            }
+            return displayItem;
+        }
+
+        function flattenObject(value, path, out) {
+            if (value === null || typeof value !== 'object') {
+                out.push({ path, value });
+                return;
+            }
+
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    out.push({ path, value });
+                    return;
+                }
+                value.forEach((item, index) => {
+                    const nextPath = `${path}[${index}]`;
+                    flattenObject(item, nextPath, out);
+                });
+                return;
+            }
+
+            const keys = Object.keys(value);
+            if (keys.length === 0) {
+                out.push({ path, value });
+                return;
+            }
+
+            keys.forEach(key => {
+                const nextPath = path ? `${path}.${key}` : key;
+                flattenObject(value[key], nextPath, out);
+            });
+        }
+
+        function formatValue(value) {
+            if (typeof value === 'string') return value;
+            return JSON.stringify(value, null, 2);
+        }
+
+        function renderAttributeTable(entries) {
+            attrTableBody.textContent = '';
+            const fragment = document.createDocumentFragment();
+
+            entries.forEach(({ path, value }) => {
+                const row = document.createElement('tr');
+                const fieldCell = document.createElement('td');
+                const valueCell = document.createElement('td');
+                const meaningCell = document.createElement('td');
+
+                fieldCell.textContent = path || '(root)';
+                const valuePre = document.createElement('pre');
+                valuePre.textContent = formatValue(value);
+                valueCell.appendChild(valuePre);
+                meaningCell.textContent = inferMeaning(path, value);
+
+                row.appendChild(fieldCell);
+                row.appendChild(valueCell);
+                row.appendChild(meaningCell);
+                fragment.appendChild(row);
+            });
+
+            attrTableBody.appendChild(fragment);
+        }
+
+        function openAttributeModal(item) {
+            const displayItem = buildDisplayItem(item);
+            const entries = [];
+            flattenObject(displayItem, '', entries);
+            renderAttributeTable(entries);
+
+            attrRaw.textContent = JSON.stringify(item, null, 2);
+            const parsedExt = parseExtValue(item.ext);
+            if (parsedExt) {
+                attrExtSection.hidden = false;
+                attrExt.textContent = JSON.stringify(parsedExt, null, 2);
+            } else {
+                attrExtSection.hidden = true;
+                attrExt.textContent = '';
+            }
+
+            attrModal.classList.add('is-open');
+            attrModal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeAttributeModal() {
+            attrModal.classList.remove('is-open');
+            attrModal.setAttribute('aria-hidden', 'true');
+        }
+
+        function setupAttributeModal() {
+            document.addEventListener('click', function(event) {
+                const attrBtn = event.target.closest('[data-action="attrs"]');
+                if (attrBtn) {
+                    const itemEl = attrBtn.closest('.content-item');
+                    if (itemEl) {
+                        const itemId = Number(itemEl.dataset.id);
+                        const item = itemsById.get(itemId);
+                        if (item) openAttributeModal(item);
+                    }
+                    return;
+                }
+
+                if (event.target === attrModalBackdrop || event.target === attrModalClose) {
+                    closeAttributeModal();
+                }
+            });
+
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape' && attrModal.classList.contains('is-open')) {
+                    closeAttributeModal();
+                }
+            });
+        }
+        
+        // Filter content
+        function filterContent() {
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            
+            updateVisibleStats(filteredItems.length);
+            renderContent(filteredItems);
+        }
+        
+        // Update stats
+        function updateStats(addedCount = 0, updatedCount = 0) {
+            totalItemsEl.textContent = allItems.length;
+            lastUpdateEl.textContent = lastUpdateTime ? lastUpdateTime.toLocaleTimeString() : '--:--';
+            updatedItemsEl.textContent = updatedCount;
+            
+            // Update visible item count
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            visibleItemsEl.textContent = filteredItems.length;
+        }
+        
+        // Update visible item stats
+        function updateVisibleStats(count) {
+            visibleItemsEl.textContent = count;
+        }
+        
+        // Set refresh state
+        function setRefreshingState(refreshing) {
+            if (refreshing) {
+                refreshIcon.classList.add('refreshing');
+                refreshBtn.disabled = true;
+            } else {
+                refreshIcon.classList.remove('refreshing');
+                refreshBtn.disabled = false;
+            }
+        }
+        
+        // Show global loading indicator
+        function showGlobalLoading() {
+            if (!isFirstLoad) {
+                globalLoading.style.display = 'block';
+            }
+        }
+        
+        // Hide global loading indicator
+        function hideGlobalLoading() {
+            globalLoading.style.display = 'none';
+        }
+        
+        // Show error
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+        
+        // Hide error
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+        
+        // Format time
+        function formatTime(timeString) {
+            try {
+                const date = new Date(timeString);
+                return date.toLocaleString('zh-CN');
+            } catch (e) {
+                return timeString;
+            }
+        }
+        
+        // Auto-refresh
+        function startAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            
+            refreshInterval = setInterval(fetchData, 60000); // Refresh every 60 seconds
+        }
+
+        // Load older pages when scrolling down
+        async function loadOlderPage() {
+            if (isFirstLoad || isLoadingMore || !hasMorePages) return;
+            
+            isLoadingMore = true;
+            loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            try {
+                const nextPage = currentPage + 1;
+                if (maxPage !== null && nextPage > maxPage) {
+                    hasMorePages = false;
+                    loadMoreStatus.textContent = '没有更多内容了';
+                    return;
+                }
+                
+                const data = await fetchWithFallback(buildApiUrl(nextPage), { page: nextPage, purpose: 'history' });
+                processData(data, { page: nextPage, mode: 'append' });
+                
+                currentPage = nextPage;
+                if (maxPage !== null && currentPage >= maxPage) {
+                    hasMorePages = false;
+                    loadMoreStatus.textContent = '没有更多内容了';
+                } else {
+                    loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                }
+            } catch (error) {
+                loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            } finally {
+                isLoadingMore = false;
+            }
+        }
+
+        function setupInfiniteScroll() {
+            if (!('IntersectionObserver' in window)) {
+                loadMoreStatus.textContent = '';
+                return;
+            }
+            
+            const observer = new IntersectionObserver(entries => {
+                const entry = entries[0];
+                if (entry.isIntersecting) {
+                    loadOlderPage();
+                }
+            }, {
+                root: null,
+                rootMargin: '200px',
+                threshold: 0
+            });
+            
+            observer.observe(loadMoreSentinel);
+        }
+    </script>
+</body>
+</html>
