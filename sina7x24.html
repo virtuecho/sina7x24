@@ -276,6 +276,10 @@
             color: #4a69bd;
             background-color: #eaf0ff;
         }
+
+        .attr-btn {
+            background-color: #f1f5f9;
+        }
         
         .action-btn.disabled {
             opacity: 0.5;
@@ -286,6 +290,111 @@
         .action-btn.disabled:hover {
             color: #777;
             background-color: #f9f9f9;
+        }
+
+        .attr-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .attr-modal.is-open {
+            display: flex;
+        }
+
+        .attr-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+        }
+
+        .attr-modal__content {
+            position: relative;
+            width: min(1000px, 92vw);
+            max-height: 85vh;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .attr-modal__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .attr-modal__header h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .attr-modal__close {
+            border: none;
+            background: none;
+            font-size: 22px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .attr-modal__body {
+            padding: 18px;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .attr-section__title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .attr-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .attr-table th,
+        .attr-table td {
+            text-align: left;
+            border: 1px solid #e2e8f0;
+            padding: 6px 8px;
+            vertical-align: top;
+        }
+
+        .attr-table th {
+            background: #f8fafc;
+            font-weight: 600;
+        }
+
+        .attr-table pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 11px;
+        }
+
+        .attr-raw {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
         
         .loading {
@@ -460,6 +569,39 @@
             <p>数据来源: 新浪财经直播API | 本页面仅用于展示目的</p>
         </div>
     </footer>
+    
+    <div class="attr-modal" id="attrModal" aria-hidden="true">
+        <div class="attr-modal__backdrop" id="attrModalBackdrop"></div>
+        <div class="attr-modal__content" role="dialog" aria-modal="true" aria-labelledby="attrModalTitle">
+            <div class="attr-modal__header">
+                <h3 id="attrModalTitle">全部属性</h3>
+                <button class="attr-modal__close" id="attrModalClose" aria-label="Close">×</button>
+            </div>
+            <div class="attr-modal__body">
+                <div class="attr-section">
+                    <div class="attr-section__title">字段含义（推测）</div>
+                    <table class="attr-table">
+                        <thead>
+                            <tr>
+                                <th>字段</th>
+                                <th>值</th>
+                                <th>含义</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attrTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="attr-section">
+                    <div class="attr-section__title">原始 JSON</div>
+                    <pre class="attr-raw" id="attrRaw"></pre>
+                </div>
+                <div class="attr-section" id="attrExtSection" hidden>
+                    <div class="attr-section__title">ext 解析</div>
+                    <pre class="attr-raw" id="attrExt"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         // API endpoint
@@ -505,6 +647,13 @@
         const globalLoading = document.getElementById('globalLoading');
         const loadMoreSentinel = document.getElementById('loadMoreSentinel');
         const loadMoreStatus = document.getElementById('loadMoreStatus');
+        const attrModal = document.getElementById('attrModal');
+        const attrModalBackdrop = document.getElementById('attrModalBackdrop');
+        const attrModalClose = document.getElementById('attrModalClose');
+        const attrTableBody = document.getElementById('attrTableBody');
+        const attrRaw = document.getElementById('attrRaw');
+        const attrExt = document.getElementById('attrExt');
+        const attrExtSection = document.getElementById('attrExtSection');
         
         // Initialization
         document.addEventListener('DOMContentLoaded', function() {
@@ -512,6 +661,7 @@
             setupEventListeners();
             startAutoRefresh();
             setupInfiniteScroll();
+            setupAttributeModal();
         });
         
         // Set up event listeners
@@ -790,6 +940,7 @@
                             ${item.tag.map(t => `<span class="tag">${t.name}</span>`).join('')}
                         </div>
                         <div class="content-actions">
+                            <button class="action-btn attr-btn" data-action="attrs">全部属性</button>
                             <button class="${buttonClass}" ${onClick ? `onclick="${onClick}"` : ''}>
                                 <i class="fas fa-external-link-alt"></i> 原文
                             </button>
@@ -825,6 +976,278 @@
             }
             
             return null;
+        }
+
+        const FIELD_MEANINGS = {
+            id: '唯一条目ID',
+            zhibo_id: '直播间ID',
+            type: '内容类型代码',
+            rich_text: '正文内容（富文本）',
+            multimedia: '多媒体内容（字符串或对象）',
+            'multimedia.img_url[]': '图片URL列表',
+            commentid: '评论系统ID',
+            compere_id: '主持人/主播ID',
+            creator: '创建者账号',
+            mender: '最后编辑账号',
+            create_time: '创建时间',
+            update_time: '更新时间',
+            is_need_check: '是否需要审核',
+            check_time: '审核时间',
+            check_status: '审核状态',
+            check_user: '审核人账号',
+            is_delete: '是否删除',
+            top_value: '置顶权重/优先级',
+            is_focus: '是否焦点',
+            source_content_id: '来源内容ID',
+            anchor_image_url: '主播图片URL',
+            anchor: '主播名称',
+            ext: '扩展JSON字符串（需解析）',
+            ext_parsed: '解析后的ext对象',
+            'ext_parsed.docurl': '文档URL（来自ext）',
+            'ext_parsed.docid': '文档ID（来自ext）',
+            'ext_parsed.stocks': '关联标的列表',
+            'ext_parsed.stocks[].market': '标的市场',
+            'ext_parsed.stocks[].symbol': '标的代码',
+            'ext_parsed.stocks[].key': '标的关键词/名称',
+            'ext_parsed.stocks[].sym_party_status': '标的党派状态（推测）',
+            'ext_parsed.needPushWB': '是否推送微博',
+            'ext_parsed.needCMSLink': '是否生成CMS链接',
+            'ext_parsed.needCalender': '是否关联日历',
+            old_live_cid: '旧版内容ID',
+            tab: 'Tab名称',
+            is_repeat: '是否重复',
+            'tag[]': '标签列表',
+            'tag[].id': '标签ID',
+            'tag[].name': '标签名称',
+            like_nums: '点赞数',
+            comment_list: '评论概览',
+            'comment_list.total': '评论总数',
+            'comment_list.thread_show': '是否显示线程',
+            'comment_list.qreply': '问答回复数',
+            'comment_list.qreply_show': '问答回复显示标记',
+            'comment_list.show': '评论显示标记',
+            'comment_list.list[]': '评论列表',
+            'comment_list.list[].mid': '评论ID',
+            'comment_list.list[].comment_mid': '父评论ID',
+            'comment_list.list[].channel': '评论频道',
+            'comment_list.list[].newsid': '新闻ID',
+            'comment_list.list[].news_mid': '新闻消息ID',
+            'comment_list.list[].channel_source': '来源频道',
+            'comment_list.list[].newsid_source': '来源新闻ID',
+            'comment_list.list[].news_mid_source': '来源新闻消息ID',
+            'comment_list.list[].status': '审核状态',
+            'comment_list.list[].time': '评论时间',
+            'comment_list.list[].agree': '赞同数',
+            'comment_list.list[].score': '评分',
+            'comment_list.list[].hot': '热度',
+            'comment_list.list[].against': '反对数',
+            'comment_list.list[].length': '内容长度',
+            'comment_list.list[].rank': '排序/排名',
+            'comment_list.list[].vote': '投票数',
+            'comment_list.list[].level': '层级',
+            'comment_list.list[].parent': '父线程ID',
+            'comment_list.list[].parent_mid': '父评论MID',
+            'comment_list.list[].thread': '线程ID',
+            'comment_list.list[].thread_mid': '线程MID',
+            'comment_list.list[].uid': '用户ID',
+            'comment_list.list[].nick': '用户昵称',
+            'comment_list.list[].usertype': '用户类型',
+            'comment_list.list[].content': '评论内容',
+            'comment_list.list[].ip': 'IP地址',
+            'comment_list.list[].config': '配置字符串',
+            'comment_list.list[].profile_img': '用户头像URL',
+            'comment_list.list[].parent_uid': '父用户ID',
+            'comment_list.list[].parent_nick': '父用户昵称',
+            'comment_list.list[].parent_profile_img': '父用户头像URL',
+            'comment_list.list[].area': '用户地区',
+            'comment_list.list[].status_uid': '状态用户ID',
+            'comment_list.list[].comment_imgs': '评论图片',
+            'comment_list.list[].status_cmnt_mid': '状态评论MID',
+            'comment_list.list[].import_type': '导入类型',
+            'comment_list.list[].media_type': '媒体类型',
+            'comment_list.list[].audio': '音频URL',
+            'comment_list.list[].video': '视频URL',
+            'comment_list.list[].openid': 'OpenID',
+            'comment_list.list[].login_type': '登录类型',
+            'comment_list.list[].batch_type': '批处理类型',
+            'comment_list.list[].check_type': '检查类型',
+            'comment_list.list[].status_show': '状态显示标记',
+            'comment_list.list[].code': '状态码',
+            'comment_list.list[].layer': '层级编号',
+            'comment_list.list[].show_loc': '显示位置标记',
+            'comment_list.list[].top_desc': '置顶描述',
+            'comment_list.list[].thread2': '次级线程ID',
+            'comment_list.list[].status2': '次级状态',
+            'comment_list.list[].content_ext': '评论扩展内容',
+            'comment_list.list[].content_ext.reply': '回复数',
+            'comment_list.list[].content_ext.weibourl': '微博链接',
+            'comment_list.list[].content_ext.videoinfo': '视频信息',
+            'comment_list.list[].is_hot': '是否热门',
+            'comment_list.list[].is_top': '是否置顶',
+            'comment_list.list[].parent_new': '父级新标记',
+            'comment_list.list[].count_layer': '层级计数',
+            'comment_list.list[].did': '设备ID',
+            'comment_list.list[].is_agree': '是否赞同',
+            'comment_list.list[].has_my': '是否包含我的数据',
+            docurl: '移动端文档URL',
+            rich_text_nick_to_url: '昵称到URL映射',
+            rich_text_nick_to_routeUri: '昵称到路由URI映射',
+            compere_info: '主播/主持人信息'
+        };
+
+        function normalizePath(path) {
+            return path.replace(/\[\d+\]/g, '[]');
+        }
+
+        function inferMeaning(path, value) {
+            const normalizedPath = normalizePath(path);
+            if (FIELD_MEANINGS[normalizedPath]) return FIELD_MEANINGS[normalizedPath];
+
+            const key = normalizedPath.split('.').pop();
+            if (!key) return '根节点值';
+            if (/_time$/.test(key)) return '时间戳';
+            if (/_id$/.test(key) || key === 'id') return '标识符';
+            if (/^is_/.test(key) || /_flag$/.test(key)) return '布尔标记';
+            if (/num|count|total|size|page/i.test(key)) return '数量/大小';
+            if (/url/i.test(key)) return 'URL';
+            if (/name|nick/i.test(key)) return '名称/标签';
+            if (/status/i.test(key)) return '状态码/状态标记';
+            if (/type/i.test(key)) return '类型代码';
+            if (/list/i.test(key)) return '列表/数组';
+            if (/img|image/.test(key)) return '图片URL或图片数据';
+            if (/time/.test(key)) return '时间值';
+            if (typeof value === 'boolean') return '布尔值';
+            if (typeof value === 'number') return '数值';
+            if (typeof value === 'string') return '文本';
+            return '未文档化，基于上下文推测';
+        }
+
+        function parseExtValue(ext) {
+            if (typeof ext !== 'string' || ext.trim() === '') return null;
+            try {
+                return JSON.parse(ext);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function buildDisplayItem(item) {
+            const displayItem = { ...item };
+            const parsedExt = parseExtValue(item.ext);
+            if (parsedExt) {
+                displayItem.ext_parsed = parsedExt;
+            }
+            return displayItem;
+        }
+
+        function flattenObject(value, path, out) {
+            if (value === null || typeof value !== 'object') {
+                out.push({ path, value });
+                return;
+            }
+
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    out.push({ path, value });
+                    return;
+                }
+                value.forEach((item, index) => {
+                    const nextPath = `${path}[${index}]`;
+                    flattenObject(item, nextPath, out);
+                });
+                return;
+            }
+
+            const keys = Object.keys(value);
+            if (keys.length === 0) {
+                out.push({ path, value });
+                return;
+            }
+
+            keys.forEach(key => {
+                const nextPath = path ? `${path}.${key}` : key;
+                flattenObject(value[key], nextPath, out);
+            });
+        }
+
+        function formatValue(value) {
+            if (typeof value === 'string') return value;
+            return JSON.stringify(value, null, 2);
+        }
+
+        function renderAttributeTable(entries) {
+            attrTableBody.textContent = '';
+            const fragment = document.createDocumentFragment();
+
+            entries.forEach(({ path, value }) => {
+                const row = document.createElement('tr');
+                const fieldCell = document.createElement('td');
+                const valueCell = document.createElement('td');
+                const meaningCell = document.createElement('td');
+
+                fieldCell.textContent = path || '(root)';
+                const valuePre = document.createElement('pre');
+                valuePre.textContent = formatValue(value);
+                valueCell.appendChild(valuePre);
+                meaningCell.textContent = inferMeaning(path, value);
+
+                row.appendChild(fieldCell);
+                row.appendChild(valueCell);
+                row.appendChild(meaningCell);
+                fragment.appendChild(row);
+            });
+
+            attrTableBody.appendChild(fragment);
+        }
+
+        function openAttributeModal(item) {
+            const displayItem = buildDisplayItem(item);
+            const entries = [];
+            flattenObject(displayItem, '', entries);
+            renderAttributeTable(entries);
+
+            attrRaw.textContent = JSON.stringify(item, null, 2);
+            const parsedExt = parseExtValue(item.ext);
+            if (parsedExt) {
+                attrExtSection.hidden = false;
+                attrExt.textContent = JSON.stringify(parsedExt, null, 2);
+            } else {
+                attrExtSection.hidden = true;
+                attrExt.textContent = '';
+            }
+
+            attrModal.classList.add('is-open');
+            attrModal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeAttributeModal() {
+            attrModal.classList.remove('is-open');
+            attrModal.setAttribute('aria-hidden', 'true');
+        }
+
+        function setupAttributeModal() {
+            document.addEventListener('click', function(event) {
+                const attrBtn = event.target.closest('[data-action="attrs"]');
+                if (attrBtn) {
+                    const itemEl = attrBtn.closest('.content-item');
+                    if (itemEl) {
+                        const itemId = Number(itemEl.dataset.id);
+                        const item = itemsById.get(itemId);
+                        if (item) openAttributeModal(item);
+                    }
+                    return;
+                }
+
+                if (event.target === attrModalBackdrop || event.target === attrModalClose) {
+                    closeAttributeModal();
+                }
+            });
+
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape' && attrModal.classList.contains('is-open')) {
+                    closeAttributeModal();
+                }
+            });
         }
         
         // Filter content
