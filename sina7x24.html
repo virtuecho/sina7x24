@@ -199,6 +199,32 @@
             margin-bottom: 15px;
             line-height: 1.5;
         }
+
+        .content-media {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 0 0 15px;
+        }
+
+        .content-image {
+            max-width: 120px;
+            max-height: 120px;
+            width: auto;
+            height: auto;
+            border-radius: 6px;
+            cursor: zoom-in;
+            transition: box-shadow 0.2s ease;
+            object-fit: contain;
+            background-color: #f5f7fa;
+        }
+
+        .content-image.is-expanded {
+            max-width: none;
+            max-height: none;
+            cursor: zoom-out;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
         
         .highlight-text {
             color: red !important;
@@ -367,7 +393,7 @@
             <div class="header-content">
                 <h1><i class="fas fa-broadcast-tower"></i> 新浪财经7*24小时全球实时财经新闻直播</h1>
                 <div>
-                    <span>自动刷新已启用 (5秒)</span>
+                    <span>自动刷新已启用 (60秒)</span>
                 </div>
             </div>
         </div>
@@ -423,12 +449,9 @@
         </div>
         
         <div class="content-list" id="contentList">
-            <div class="loading">
-                <i class="fas fa-spinner fa-spin"></i> 正在加载数据...
-            </div>
         </div>
         <div class="load-more" id="loadMoreSentinel">
-            <span id="loadMoreStatus">向下滚动加载更多...</span>
+            <span id="loadMoreStatus"><i class="fas fa-spinner fa-spin"></i></span>
         </div>
     </div>
 
@@ -520,7 +543,7 @@
         }
         
         // Try multiple connection methods to fetch data
-        async function fetchWithFallback(url) {
+        async function fetchWithFallback(url, { page, purpose } = {}) {
             let lastError = null;
             let attempts = 0;
             const totalMethods = CONNECTION_METHODS.length;
@@ -532,7 +555,8 @@
                 const targetUrl = method.url(url);
                 
                 try {
-                    console.log(`[${new Date().toLocaleTimeString()}] 尝试使用 ${method.name} (${methodIndex + 1}/${totalMethods}): ${targetUrl}`);
+                    const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
+                    console.info(`[${new Date().toLocaleTimeString()}] Fetch ${contextLabel} via ${method.name} (${methodIndex + 1}/${totalMethods})`);
                     
                     const fetchOptions = {
                         timeout: 10000,
@@ -542,14 +566,15 @@
                     const response = await fetchWithTimeout(targetUrl, fetchOptions);
                     
                     if (!response.ok) {
-                        throw new Error(`HTTP错误! 状态: ${response.status}`);
+                        throw new Error(`HTTP error ${response.status}`);
                     }
                     
                     // On success, update the current method index
                     currentMethodIndex = (methodIndex + 1) % totalMethods;
                     return await response.json();
                 } catch (error) {
-                    console.warn(`[${new Date().toLocaleTimeString()}] ${method.name} 失败:`, error.message);
+                    const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
+                    console.warn(`[${new Date().toLocaleTimeString()}] Failed ${contextLabel} via ${method.name}: ${error.message}`);
                     lastError = error;
                     
                     // Track attempt count
@@ -557,7 +582,8 @@
                     
                     // If all methods have been tried once, log a warning
                     if (attempts % totalMethods === 0 && attempts > 0) {
-                        console.warn(`[${new Date().toLocaleTimeString()}] 已完成第 ${attempts/totalMethods} 轮尝试，所有连接方式均失败`);
+                        const rounds = attempts / totalMethods;
+                        console.warn(`[${new Date().toLocaleTimeString()}] All methods failed for ${contextLabel}. Retrying (round ${rounds})...`);
                     }
                     
                     // Wait briefly before trying the next method
@@ -573,7 +599,7 @@
                 showGlobalLoading();
                 hideError();
                 
-                const data = await fetchWithFallback(buildApiUrl(1));
+                const data = await fetchWithFallback(buildApiUrl(1), { page: 1, purpose: 'latest' });
                 processData(data, { page: 1, mode: 'prepend' });
             } catch (error) {
                 showError(`获取数据失败: ${error.message}。正在继续尝试其他连接方式...`);
@@ -694,7 +720,7 @@
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = newContent;
             
-            // 将新元素添加到列表顶部
+            // Add new elements to the top of the list
             Array.from(tempDiv.children).forEach(element => {
                 contentList.insertBefore(element, contentList.firstChild);
             });
@@ -742,6 +768,13 @@
             const isHighlight = item.tag.some(t => t.id == 9);
             const textClass = isHighlight ? 'content-text highlight-text' : 'content-text';
             
+            const imageUrls = Array.isArray(item.multimedia?.img_url) ? item.multimedia.img_url : [];
+            const mediaHtml = imageUrls.length > 0
+                ? `<div class="content-media">
+                        ${imageUrls.map(url => `<img class="content-image" src="${url}" alt="">`).join('')}
+                   </div>`
+                : '';
+            
             return `
                 <div class="content-item" data-id="${item.id}">
                     <div class="content-header">
@@ -751,6 +784,7 @@
                     <div class="${textClass}">
                         ${item.rich_text}
                     </div>
+                    ${mediaHtml}
                     <div class="content-footer">
                         <div class="content-tags">
                             ${item.tag.map(t => `<span class="tag">${t.name}</span>`).join('')}
@@ -771,6 +805,12 @@
                 window.open(url, '_blank');
             }
         }
+
+        document.addEventListener('click', function(event) {
+            const img = event.target.closest('.content-image');
+            if (!img) return;
+            img.classList.toggle('is-expanded');
+        });
         
         // Get document URL (convert mobile link to PC link)
         function getDocUrl(item) {
@@ -861,15 +901,15 @@
                 clearInterval(refreshInterval);
             }
             
-            refreshInterval = setInterval(fetchData, 5000); // Refresh every 5 seconds
+            refreshInterval = setInterval(fetchData, 60000); // Refresh every 60 seconds
         }
 
         // Load older pages when scrolling down
         async function loadOlderPage() {
-            if (isLoadingMore || !hasMorePages) return;
+            if (isFirstLoad || isLoadingMore || !hasMorePages) return;
             
             isLoadingMore = true;
-            loadMoreStatus.textContent = '正在加载更多...';
+            loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             
             try {
                 const nextPage = currentPage + 1;
@@ -879,7 +919,7 @@
                     return;
                 }
                 
-                const data = await fetchWithFallback(buildApiUrl(nextPage));
+                const data = await fetchWithFallback(buildApiUrl(nextPage), { page: nextPage, purpose: 'history' });
                 processData(data, { page: nextPage, mode: 'append' });
                 
                 currentPage = nextPage;
@@ -887,10 +927,10 @@
                     hasMorePages = false;
                     loadMoreStatus.textContent = '没有更多内容了';
                 } else {
-                    loadMoreStatus.textContent = '向下滚动加载更多...';
+                    loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                 }
             } catch (error) {
-                loadMoreStatus.textContent = '加载失败，稍后重试';
+                loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             } finally {
                 isLoadingMore = false;
             }
@@ -898,7 +938,7 @@
 
         function setupInfiniteScroll() {
             if (!('IntersectionObserver' in window)) {
-                loadMoreStatus.textContent = '请手动点击刷新获取更多内容';
+                loadMoreStatus.textContent = '';
                 return;
             }
             
