@@ -268,6 +268,13 @@
             font-size: 18px;
             color: #777;
         }
+
+        .load-more {
+            text-align: center;
+            padding: 20px 0 40px;
+            color: #777;
+            font-size: 14px;
+        }
         
         .error {
             background-color: #ffebee;
@@ -420,6 +427,9 @@
                 <i class="fas fa-spinner fa-spin"></i> 正在加载数据...
             </div>
         </div>
+        <div class="load-more" id="loadMoreSentinel">
+            <span id="loadMoreStatus">向下滚动加载更多...</span>
+        </div>
     </div>
 
     <footer>
@@ -431,8 +441,11 @@
     <script>
         // API endpoint
         const API_BASE = 'https://zhibo.sina.com.cn/api/zhibo/feed';
-        const API_PARAMS = '?zhibo_id=152&tag=0&page=1&pagesize=100&dire=f&dpc=1&type=0';
-        const API_ENDPOINT = API_BASE + API_PARAMS;
+        const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&page_size=100&type=0';
+        
+        function buildApiUrl(page) {
+            return `${API_BASE}?${API_DEFAULT_PARAMS}&page=${page}`;
+        }
         
         // Connection methods list - try direct first, then CORS proxies in order
         const CONNECTION_METHODS = [
@@ -443,12 +456,17 @@
 
         // Global variables
         let allItems = [];
+        let itemsById = new Map();
         let lastUpdateTime = null;
         let refreshInterval = null;
         let isFirstLoad = true;
         let currentSearch = '';
         let currentType = 'all';
-        let currentMethodIndex = 0; // 从直连开始
+        let currentMethodIndex = 0; // Start from direct
+        let currentPage = 1;
+        let maxPage = null;
+        let isLoadingMore = false;
+        let hasMorePages = true;
         
         // DOM elements
         const contentList = document.getElementById('contentList');
@@ -462,12 +480,15 @@
         const visibleItemsEl = document.getElementById('visibleItems');
         const updatedItemsEl = document.getElementById('updatedItems');
         const globalLoading = document.getElementById('globalLoading');
+        const loadMoreSentinel = document.getElementById('loadMoreSentinel');
+        const loadMoreStatus = document.getElementById('loadMoreStatus');
         
         // Initialization
         document.addEventListener('DOMContentLoaded', function() {
             fetchData();
             setupEventListeners();
             startAutoRefresh();
+            setupInfiniteScroll();
         });
         
         // Set up event listeners
@@ -552,8 +573,8 @@
                 showGlobalLoading();
                 hideError();
                 
-                const data = await fetchWithFallback(API_ENDPOINT);
-                processData(data);
+                const data = await fetchWithFallback(buildApiUrl(1));
+                processData(data, { page: 1, mode: 'prepend' });
             } catch (error) {
                 showError(`获取数据失败: ${error.message}。正在继续尝试其他连接方式...`);
             } finally {
@@ -563,12 +584,18 @@
         }
         
         // Process data
-        function processData(data) {
+        function processData(data, { page, mode }) {
             if (data.result && data.result.status.code === 0) {
                 const newItems = data.result.data.feed.list;
+                const pageInfo = data.result.data.feed.page_info;
+                
+                if (pageInfo && typeof pageInfo.totalPage === 'number') {
+                    maxPage = pageInfo.totalPage;
+                    hasMorePages = currentPage < maxPage;
+                }
                 
                 // Merge new data and keep existing content
-                const { addedItems, updatedItems } = mergeItems(newItems);
+                const { addedItems, updatedItems } = mergeItems(newItems, { prepend: mode === 'prepend' });
                 
                 lastUpdateTime = new Date();
                 updateStats(addedItems.length, updatedItems.length);
@@ -580,7 +607,11 @@
                     // Filter new items based on current criteria
                     const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType);
                     if (filteredNewItems.length > 0) {
-                        renderNewItems(filteredNewItems);
+                        if (mode === 'prepend') {
+                            renderNewItems(filteredNewItems);
+                        } else {
+                            renderOlderItems(filteredNewItems);
+                        }
                     }
                     
                     // Update existing items
@@ -588,27 +619,30 @@
                         updateExistingItems(updatedItems);
                     }
                 }
+                
+                return { addedItems, updatedItems };
             } else {
                 showError('API返回的数据格式不正确');
+                return { addedItems: [], updatedItems: [] };
             }
         }
         
         // Merge new items into the existing list
-        function mergeItems(newItems) {
+        function mergeItems(newItems, { prepend = false } = {}) {
             const addedItems = [];
             const updatedItems = [];
             
             // Filter out existing items
             for (const newItem of newItems) {
-                const existingIndex = allItems.findIndex(item => item.id === newItem.id);
+                const existingItem = itemsById.get(newItem.id);
                 
-                if (existingIndex === -1) {
+                if (!existingItem) {
                     // New item
-                    addedItems.push(newItem);
+                    const storedItem = { ...newItem };
+                    itemsById.set(newItem.id, storedItem);
+                    addedItems.push(storedItem);
                 } else {
                     // Update item
-                    const existingItem = allItems[existingIndex];
-                    
                     // Check for changes
                     const hasChanges = 
                         JSON.stringify(existingItem.rich_text) !== JSON.stringify(newItem.rich_text) ||
@@ -617,23 +651,17 @@
                     
                     if (hasChanges) {
                         // Update item properties
-                        allItems[existingIndex] = {
-                            ...existingItem,
-                            rich_text: newItem.rich_text,
-                            docurl: newItem.docurl,
-                            tag: newItem.tag
-                        };
-                        updatedItems.push(allItems[existingIndex]);
+                        existingItem.rich_text = newItem.rich_text;
+                        existingItem.docurl = newItem.docurl;
+                        existingItem.tag = newItem.tag;
+                        updatedItems.push(existingItem);
                     }
                 }
             }
             
-            // Add new items to the top (latest first)
-            allItems = [...addedItems, ...allItems];
-            
-            // Keep at most 100 items
-            if (allItems.length > 100) {
-                allItems = allItems.slice(0, 100);
+            // Add new items to the top or bottom
+            if (addedItems.length > 0) {
+                allItems = prepend ? [...addedItems, ...allItems] : [...allItems, ...addedItems];
             }
             
             return { addedItems, updatedItems };
@@ -669,6 +697,19 @@
             // 将新元素添加到列表顶部
             Array.from(tempDiv.children).forEach(element => {
                 contentList.insertBefore(element, contentList.firstChild);
+            });
+        }
+
+        // Render older items at the bottom
+        function renderOlderItems(items) {
+            if (items.length === 0) return;
+            
+            const newContent = items.map(item => createContentItem(item)).join('');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newContent;
+            
+            Array.from(tempDiv.children).forEach(element => {
+                contentList.appendChild(element);
             });
         }
         
@@ -821,6 +862,58 @@
             }
             
             refreshInterval = setInterval(fetchData, 5000); // Refresh every 5 seconds
+        }
+
+        // Load older pages when scrolling down
+        async function loadOlderPage() {
+            if (isLoadingMore || !hasMorePages) return;
+            
+            isLoadingMore = true;
+            loadMoreStatus.textContent = '正在加载更多...';
+            
+            try {
+                const nextPage = currentPage + 1;
+                if (maxPage !== null && nextPage > maxPage) {
+                    hasMorePages = false;
+                    loadMoreStatus.textContent = '没有更多内容了';
+                    return;
+                }
+                
+                const data = await fetchWithFallback(buildApiUrl(nextPage));
+                processData(data, { page: nextPage, mode: 'append' });
+                
+                currentPage = nextPage;
+                if (maxPage !== null && currentPage >= maxPage) {
+                    hasMorePages = false;
+                    loadMoreStatus.textContent = '没有更多内容了';
+                } else {
+                    loadMoreStatus.textContent = '向下滚动加载更多...';
+                }
+            } catch (error) {
+                loadMoreStatus.textContent = '加载失败，稍后重试';
+            } finally {
+                isLoadingMore = false;
+            }
+        }
+
+        function setupInfiniteScroll() {
+            if (!('IntersectionObserver' in window)) {
+                loadMoreStatus.textContent = '请手动点击刷新获取更多内容';
+                return;
+            }
+            
+            const observer = new IntersectionObserver(entries => {
+                const entry = entries[0];
+                if (entry.isIntersecting) {
+                    loadOlderPage();
+                }
+            }, {
+                root: null,
+                rootMargin: '200px',
+                threshold: 0
+            });
+            
+            observer.observe(loadMoreSentinel);
         }
     </script>
 </body>
