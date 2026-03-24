@@ -3,6 +3,7 @@
 <head>
     <!-- Written based on Deepseek R1 thru Tencent Yuanbao on Tuesday, 16 September 2025 -->
     <!-- Edited by GPT-5.2-Codex from Tuesday, 10 February 2026 -->
+    <!-- Edited by GPT-5.4 from Tuesday, 24 March 2026 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>新浪财经7*24小时全球实时财经新闻直播</title>
@@ -54,7 +55,7 @@
         
         .header-content {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
             padding: 0 20px;
         }
@@ -182,6 +183,27 @@
             background-color: #8da6e0;
             cursor: not-allowed;
         }
+
+        .toggle-btn {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .refresh-btn.toggle-btn:not(.is-active) {
+            background-color: #8da6e0;
+        }
+
+        .refresh-btn.toggle-btn:hover:not(:disabled) {
+            background-color: #6f8bd4;
+        }
+
+        .refresh-btn.toggle-btn.is-active {
+            background-color: #2c3e50;
+        }
+
+        .refresh-btn.toggle-btn.is-active:hover:not(:disabled) {
+            background-color: #223140;
+        }
         
         .refreshing {
             animation: rotate 1s linear infinite;
@@ -227,20 +249,20 @@
         .content-item {
             background-color: white;
             border-radius: 10px;
-            padding: 20px;
+            padding: 16px 18px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s, box-shadow 0.3s;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         
         .content-item:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
         
         .content-header {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             align-items: center;
         }
         
@@ -259,15 +281,23 @@
         
         .content-text {
             font-size: 16px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             line-height: 1.5;
+        }
+
+        .content-title {
+            font-size: 16px;
+            line-height: 1.4;
+            font-weight: 700;
+            color: #203247;
+            margin-bottom: 6px;
         }
 
         .content-media {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            margin: 0 0 15px;
+            margin: 0 0 10px;
         }
 
         .content-image {
@@ -299,7 +329,7 @@
             justify-content: space-between;
             align-items: center;
             border-top: 1px solid #eee;
-            padding-top: 15px;
+            padding-top: 10px;
         }
         
         .content-tags {
@@ -310,9 +340,9 @@
         .tag {
             background-color: #eaf0ff;
             color: #4a69bd;
-            padding: 4px 10px;
+            padding: 4px 9px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
         }
         
         .content-actions {
@@ -328,9 +358,9 @@
             display: flex;
             align-items: center;
             gap: 5px;
-            font-size: 14px;
+            font-size: 13px;
             transition: color 0.3s;
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-radius: 4px;
             background-color: #f1f5f9;
         }
@@ -469,9 +499,25 @@
 
         .load-more {
             text-align: center;
-            padding: 20px 0 40px;
-            color: #777;
-            font-size: 14px;
+            padding: 16px 0 24px;
+            color: #6b7280;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .load-more__status {
+            min-height: 18px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .load-more__note {
+            font-size: 12px;
+            color: #8a94a6;
+            line-height: 1.4;
         }
         
         .error {
@@ -510,14 +556,6 @@
             100% { left: 150%; }
         }
         
-        footer {
-            text-align: center;
-            margin-top: 40px;
-            padding: 20px;
-            color: #777;
-            border-top: 1px solid #eee;
-        }
-
         .floating-actions {
             position: fixed;
             right: 24px;
@@ -625,9 +663,6 @@
         <div class="container">
             <div class="header-content">
                 <h1><i class="fas fa-broadcast-tower"></i> 新浪财经7*24小时全球实时财经新闻直播</h1>
-                <div>
-                    <span id="autoRefreshStatus">自动刷新已启用 (20秒)</span>
-                </div>
             </div>
         </div>
     </header>
@@ -659,9 +694,12 @@
                         <option value="9">焦点</option>
                     </select>
                     
-                    <button class="refresh-btn" id="refreshBtn">
+                    <button class="refresh-btn" id="refreshBtn" type="button" title="立即拉取最新消息" aria-label="立即拉取最新消息">
                         <i class="fas fa-sync-alt" id="refreshIcon"></i> 刷新数据
                     </button>
+                    <button class="refresh-btn toggle-btn is-active" id="titleModeBtn" type="button" title="将【标题】单独提取显示" aria-label="将【标题】单独提取显示">标题单显：开</button>
+                    <button class="refresh-btn toggle-btn" id="refreshModeBtn" type="button" title="切换自动刷新频率" aria-label="切换自动刷新频率">自动刷新：20秒</button>
+                    <button class="refresh-btn toggle-btn" id="itemLimitBtn" type="button" title="切换是否限制最多保留100条项目" aria-label="切换是否限制最多保留100条项目">项目上限：不限</button>
                 </div>
             </div>
 
@@ -688,15 +726,10 @@
         <div class="content-list" id="contentList">
         </div>
         <div class="load-more" id="loadMoreSentinel">
-            <span id="loadMoreStatus"><i class="fas fa-spinner fa-spin"></i></span>
+            <div class="load-more__status" id="loadMoreStatus"><i class="fas fa-spinner fa-spin"></i></div>
+            <div class="load-more__note">数据来源: 新浪财经直播API | 本页面仅用于展示目的</div>
         </div>
     </div>
-
-    <footer>
-        <div class="container">
-            <p>数据来源: 新浪财经直播API | 本页面仅用于展示目的</p>
-        </div>
-    </footer>
 
     <div class="floating-actions" aria-label="页面快捷操作">
         <button class="floating-btn" id="scrollTopBtn" type="button" title="回到顶部" aria-label="回到顶部">
@@ -750,7 +783,9 @@
         const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&page_size=100&type=0';
         const REQUEST_TIMEOUT = 10000;
         const RETRY_DELAY_MS = 1200;
-        const AUTO_REFRESH_INTERVAL_MS = 20000;
+        const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 20000;
+        const FAST_AUTO_REFRESH_INTERVAL_MS = 1000;
+        const ITEM_LIMIT_COUNT = 100;
         const HISTORY_VISIBILITY_MARGIN = 220;
         
         function buildApiUrl(page) {
@@ -770,6 +805,9 @@
         let isLoadingMore = false;
         let hasMorePages = true;
         let historyAutoLoadEnabled = true;
+        let showStandaloneTitle = true;
+        let itemLimitEnabled = false;
+        let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let isRefreshing = false;
         
         // DOM elements
@@ -778,8 +816,10 @@
         const dateFilterInput = document.getElementById('dateFilter');
         const typeFilter = document.getElementById('typeFilter');
         const refreshBtn = document.getElementById('refreshBtn');
+        const titleModeBtn = document.getElementById('titleModeBtn');
+        const refreshModeBtn = document.getElementById('refreshModeBtn');
+        const itemLimitBtn = document.getElementById('itemLimitBtn');
         const refreshIcon = document.getElementById('refreshIcon');
-        const autoRefreshStatus = document.getElementById('autoRefreshStatus');
         const errorMessage = document.getElementById('errorMessage');
         const totalItemsEl = document.getElementById('totalItems');
         const lastUpdateEl = document.getElementById('lastUpdate');
@@ -808,6 +848,9 @@
 
             updateAutoRefreshStatus();
             updateHistoryToggleButton();
+            updateTitleModeButton();
+            updateRefreshModeButton();
+            updateItemLimitButton();
             fetchData();
             setupEventListeners();
             startAutoRefresh();
@@ -833,6 +876,9 @@
             });
             
             refreshBtn.addEventListener('click', fetchData);
+            titleModeBtn.addEventListener('click', toggleTitleMode);
+            refreshModeBtn.addEventListener('click', toggleRefreshMode);
+            itemLimitBtn.addEventListener('click', toggleItemLimit);
             scrollTopBtn.addEventListener('click', scrollToTop);
             historyToggleBtn.addEventListener('click', toggleHistoryAutoLoad);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
@@ -843,7 +889,72 @@
         }
 
         function updateAutoRefreshStatus() {
-            autoRefreshStatus.textContent = `自动刷新已启用 (${Math.round(AUTO_REFRESH_INTERVAL_MS / 1000)}秒)`;
+            updateRefreshModeButton();
+        }
+
+        function updateTitleModeButton() {
+            const label = showStandaloneTitle ? '标题单显：开' : '标题单显：关';
+            const tooltip = showStandaloneTitle
+                ? '已开启标题单独显示；点击后恢复为正文一体显示'
+                : '已关闭标题单独显示；点击后提取【标题】并单独显示';
+
+            titleModeBtn.textContent = label;
+            titleModeBtn.classList.toggle('is-active', showStandaloneTitle);
+            titleModeBtn.setAttribute('title', tooltip);
+            titleModeBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function toggleTitleMode() {
+            showStandaloneTitle = !showStandaloneTitle;
+            updateTitleModeButton();
+            filterContent();
+        }
+
+        function updateRefreshModeButton() {
+            const isFastMode = autoRefreshIntervalMs === FAST_AUTO_REFRESH_INTERVAL_MS;
+            const label = isFastMode ? '极速刷新：1秒' : '自动刷新：20秒';
+            const tooltip = isFastMode
+                ? '当前每1秒自动刷新一次；点击切回每20秒刷新'
+                : '当前每20秒自动刷新一次；点击切换为每1秒刷新';
+
+            refreshModeBtn.textContent = label;
+            refreshModeBtn.classList.toggle('is-active', isFastMode);
+            refreshModeBtn.setAttribute('title', tooltip);
+            refreshModeBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function toggleRefreshMode() {
+            autoRefreshIntervalMs = autoRefreshIntervalMs === FAST_AUTO_REFRESH_INTERVAL_MS
+                ? DEFAULT_AUTO_REFRESH_INTERVAL_MS
+                : FAST_AUTO_REFRESH_INTERVAL_MS;
+
+            updateAutoRefreshStatus();
+            startAutoRefresh();
+        }
+
+        function updateItemLimitButton() {
+            const label = itemLimitEnabled ? `项目上限：${ITEM_LIMIT_COUNT}条` : '项目上限：不限';
+            const tooltip = itemLimitEnabled
+                ? `当前最多保留 ${ITEM_LIMIT_COUNT} 条项目；新消息到来时会自动删除更旧的项目`
+                : `当前不限制项目数量；点击后改为最多保留 ${ITEM_LIMIT_COUNT} 条`;
+
+            itemLimitBtn.textContent = label;
+            itemLimitBtn.classList.toggle('is-active', itemLimitEnabled);
+            itemLimitBtn.setAttribute('title', tooltip);
+            itemLimitBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function toggleItemLimit() {
+            itemLimitEnabled = !itemLimitEnabled;
+            updateItemLimitButton();
+
+            if (itemLimitEnabled) {
+                enforceItemLimit();
+            }
+
+            updateStats(0, 0);
+            filterContent();
+            updateHistoryStatus();
         }
 
         function updateHistoryToggleButton() {
@@ -967,12 +1078,13 @@
                 
                 // Merge new data and keep existing content
                 const { addedItems, updatedItems } = mergeItems(newItems, { prepend: mode === 'prepend' });
+                const trimmedCount = enforceItemLimit();
                 
                 lastUpdateTime = new Date();
                 updateStats(addedItems.length, updatedItems.length);
                 
-                if (isFirstLoad) {
-                    renderContent(allItems);
+                if (isFirstLoad || trimmedCount > 0) {
+                    filterContent();
                     isFirstLoad = false;
                 } else {
                     // Filter new items based on current criteria
@@ -1036,6 +1148,21 @@
             }
             
             return { addedItems, updatedItems };
+        }
+
+        function enforceItemLimit() {
+            if (!itemLimitEnabled || allItems.length <= ITEM_LIMIT_COUNT) {
+                return 0;
+            }
+
+            const removedItems = allItems.slice(ITEM_LIMIT_COUNT);
+            allItems = allItems.slice(0, ITEM_LIMIT_COUNT);
+
+            removedItems.forEach(item => {
+                itemsById.delete(item.id);
+            });
+
+            return removedItems.length;
         }
         
         // Filter items by criteria
@@ -1108,11 +1235,22 @@
             // Check whether to highlight (ID is 9)
             const isHighlight = item.tag.some(t => t.id == 9);
             const textClass = isHighlight ? 'content-text highlight-text' : 'content-text';
+            const titleClass = isHighlight ? 'content-title highlight-text' : 'content-title';
+            const displayParts = getDisplayTextParts(item.rich_text);
             
             const imageUrls = Array.isArray(item.multimedia?.img_url) ? item.multimedia.img_url : [];
             const mediaHtml = imageUrls.length > 0
                 ? `<div class="content-media">
                         ${imageUrls.map(url => `<img class="content-image" src="${url}" alt="">`).join('')}
+                   </div>`
+                : '';
+
+            const titleHtml = displayParts.title
+                ? `<div class="${titleClass}">${displayParts.title}</div>`
+                : '';
+            const bodyHtml = displayParts.body
+                ? `<div class="${textClass}">
+                        ${displayParts.body}
                    </div>`
                 : '';
             
@@ -1122,9 +1260,8 @@
                         <span class="content-id">ID: ${item.id}</span>
                         <span class="content-time">${formatTime(item.create_time)}</span>
                     </div>
-                    <div class="${textClass}">
-                        ${item.rich_text}
-                    </div>
+                    ${titleHtml}
+                    ${bodyHtml}
                     ${mediaHtml}
                     <div class="content-footer">
                         <div class="content-tags">
@@ -1558,6 +1695,47 @@
                 .toLowerCase();
         }
 
+        function extractHeadlineParts(text) {
+            if (typeof text !== 'string') {
+                return { title: '', body: '' };
+            }
+
+            const trimmedText = text.trim();
+            const match = trimmedText.match(/^【([^】]+)】\s*[-—–:：]?\s*([\s\S]*)$/);
+
+            if (!match) {
+                return { title: '', body: trimmedText };
+            }
+
+            return {
+                title: match[1].trim(),
+                body: match[2].trim()
+            };
+        }
+
+        function getDisplayTextParts(text) {
+            if (!showStandaloneTitle) {
+                return {
+                    title: '',
+                    body: typeof text === 'string' ? text : ''
+                };
+            }
+
+            const parts = extractHeadlineParts(text);
+
+            if (!parts.title) {
+                return {
+                    title: '',
+                    body: typeof text === 'string' ? text : ''
+                };
+            }
+
+            return {
+                title: parts.title,
+                body: parts.body
+            };
+        }
+
         function getOldestLoadedItem() {
             return allItems.length > 0 ? allItems[allItems.length - 1] : null;
         }
@@ -1582,6 +1760,8 @@
                 parts.push('正在加载更早消息...');
             } else if (exhausted) {
                 parts.push('已到接口当前可提供的最旧内容');
+            } else if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
+                parts.push(`已限制最多 ${ITEM_LIMIT_COUNT} 条`);
             } else if (!historyAutoLoadEnabled) {
                 parts.push('已暂停下拉加载历史消息');
             }
@@ -1604,12 +1784,16 @@
                 clearInterval(refreshInterval);
             }
             
-            refreshInterval = setInterval(fetchData, AUTO_REFRESH_INTERVAL_MS); // Refresh every 20 seconds
+            refreshInterval = setInterval(fetchData, autoRefreshIntervalMs);
         }
 
         // Load older pages when scrolling down
         async function loadOlderPage() {
             if (isFirstLoad || isLoadingMore || !hasMorePages || !historyAutoLoadEnabled) return;
+            if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
+                updateHistoryStatus();
+                return;
+            }
             
             isLoadingMore = true;
             updateHistoryStatus({ loading: true });
