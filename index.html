@@ -83,6 +83,89 @@
             backdrop-filter: blur(14px);
             border: 1px solid rgba(116, 144, 196, 0.28);
             box-shadow: 0 10px 24px rgba(74, 105, 189, 0.14);
+            overflow: hidden;
+            transition: padding 0.25s ease, margin-bottom 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+        }
+
+        .sticky-panel__mobile-toggle {
+            display: none;
+            width: 100%;
+            border: none;
+            background: rgba(255, 255, 255, 0.8);
+            color: #2c3e50;
+            border-radius: 999px;
+            padding: 10px 14px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .sticky-panel__mobile-copy {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1px;
+            text-align: left;
+        }
+
+        .sticky-panel__mobile-text {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .sticky-panel__mobile-hint {
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        .sticky-panel__content {
+            transition: max-height 0.28s ease, opacity 0.2s ease, transform 0.25s ease;
+        }
+
+        .sticky-panel.is-compact {
+            padding: 8px 10px;
+            margin-bottom: 12px;
+            border-radius: 999px;
+            background: rgba(231, 239, 255, 0.96);
+            box-shadow: 0 8px 20px rgba(74, 105, 189, 0.14);
+        }
+
+        .sticky-panel.is-compact .sticky-panel__content {
+            max-height: 0;
+            opacity: 0;
+            transform: translateY(-6px);
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .sticky-panel.is-compact .sticky-panel__mobile-copy {
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sticky-panel.is-compact .sticky-panel__mobile-text {
+            font-size: 12px;
+        }
+
+        .sticky-panel.is-compact .sticky-panel__mobile-hint {
+            display: none;
+        }
+
+        .sticky-panel.is-mobile-expanded .sticky-panel__mobile-toggle,
+        .sticky-panel.is-compact .sticky-panel__mobile-toggle {
+            display: flex;
+        }
+
+        .sticky-panel.is-mobile-expanded .sticky-panel__mobile-toggle {
+            margin-bottom: 10px;
+        }
+
+        .sticky-panel.is-compact .sticky-panel__mobile-toggle {
+            margin-bottom: 0;
+            padding: 0 4px;
+            background: transparent;
         }
 
         .sticky-panel .controls {
@@ -370,6 +453,11 @@
             background-color: #eaf0ff;
         }
 
+        .copy-btn {
+            min-width: 68px;
+            justify-content: center;
+        }
+
         .attr-btn {
             background-color: #f1f5f9;
         }
@@ -607,7 +695,7 @@
                 top: 8px;
                 padding: 12px;
             }
-            
+
             .controls {
                 flex-direction: column;
             }
@@ -670,7 +758,16 @@
     <div class="container">
         <div class="error" id="errorMessage"></div>
         
-        <div class="sticky-panel">
+        <div class="sticky-panel" id="stickyPanel">
+            <button class="sticky-panel__mobile-toggle" id="stickyPanelToggleBtn" type="button" hidden>
+                <span class="sticky-panel__mobile-copy">
+                    <span class="sticky-panel__mobile-text">展开筛选与统计</span>
+                    <span class="sticky-panel__mobile-hint">点击展开</span>
+                </span>
+                <i class="fas fa-chevron-down"></i>
+            </button>
+
+            <div class="sticky-panel__content" id="stickyPanelContent">
             <div class="controls">
                 <div class="search-box">
                     <input type="text" id="searchInput" placeholder="搜索直播内容 / ID / 日期...">
@@ -720,6 +817,7 @@
                     <div class="stat-number" id="updatedItems">0</div>
                     <div class="stat-label">原文链接更新项目</div>
                 </div>
+            </div>
             </div>
         </div>
         
@@ -787,6 +885,12 @@
         const FAST_AUTO_REFRESH_INTERVAL_MS = 1000;
         const ITEM_LIMIT_COUNT = 100;
         const HISTORY_VISIBILITY_MARGIN = 220;
+        const STICKY_PANEL_MAX_WIDTH = 820;
+        const STICKY_PANEL_MAX_HEIGHT = 640;
+        const STICKY_PANEL_WIDE_RATIO = 1.45;
+        const STICKY_PANEL_MAX_HEIGHT_RATIO = 0.36;
+        const STICKY_PANEL_COLLAPSE_SCROLL_Y = 120;
+        const STICKY_PANEL_COMPACT_SCROLL_Y = 28;
         
         function buildApiUrl(page) {
             return `${API_BASE}?${API_DEFAULT_PARAMS}&page=${page}`;
@@ -808,10 +912,14 @@
         let showStandaloneTitle = true;
         let itemLimitEnabled = false;
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
+        let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
         
         // DOM elements
         const contentList = document.getElementById('contentList');
+        const stickyPanel = document.getElementById('stickyPanel');
+        const stickyPanelToggleBtn = document.getElementById('stickyPanelToggleBtn');
+        const stickyPanelContent = document.getElementById('stickyPanelContent');
         const searchInput = document.getElementById('searchInput');
         const dateFilterInput = document.getElementById('dateFilter');
         const typeFilter = document.getElementById('typeFilter');
@@ -854,6 +962,7 @@
             fetchData();
             setupEventListeners();
             startAutoRefresh();
+            updateStickyPanelState();
             setupInfiniteScroll();
             setupAttributeModal();
         });
@@ -879,9 +988,15 @@
             titleModeBtn.addEventListener('click', toggleTitleMode);
             refreshModeBtn.addEventListener('click', toggleRefreshMode);
             itemLimitBtn.addEventListener('click', toggleItemLimit);
+            stickyPanelToggleBtn.addEventListener('click', toggleStickyPanel);
             scrollTopBtn.addEventListener('click', scrollToTop);
             historyToggleBtn.addEventListener('click', toggleHistoryAutoLoad);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
+            window.addEventListener('scroll', updateStickyPanelState, { passive: true });
+            window.addEventListener('resize', updateStickyPanelState);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', updateStickyPanelState);
+            }
         }
         
         function sleep(ms) {
@@ -942,6 +1057,76 @@
             itemLimitBtn.classList.toggle('is-active', itemLimitEnabled);
             itemLimitBtn.setAttribute('title', tooltip);
             itemLimitBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function shouldUseCompactStickyPanel() {
+            const viewportWidth = window.visualViewport?.width || window.innerWidth;
+            const viewportHeight = window.visualViewport?.height || window.innerHeight;
+            const viewportRatio = viewportWidth / Math.max(viewportHeight, 1);
+            const expandedPanelHeight = stickyPanelContent?.scrollHeight || stickyPanel?.scrollHeight || 0;
+            const isNarrowViewport = viewportWidth <= STICKY_PANEL_MAX_WIDTH;
+            const isShortViewport = viewportHeight <= STICKY_PANEL_MAX_HEIGHT;
+            const isShortWideViewport = viewportRatio >= STICKY_PANEL_WIDE_RATIO && viewportHeight <= 820;
+            const panelOccupiesTooMuchHeight = expandedPanelHeight >= viewportHeight * STICKY_PANEL_MAX_HEIGHT_RATIO;
+
+            return isNarrowViewport
+                || isShortViewport
+                || isShortWideViewport
+                || panelOccupiesTooMuchHeight;
+        }
+
+        function updateStickyPanelToggleButton() {
+            const isCompact = stickyPanel.classList.contains('is-compact');
+            const isVisible = isCompact || stickyPanel.classList.contains('is-mobile-expanded');
+            const textEl = stickyPanelToggleBtn.querySelector('.sticky-panel__mobile-text');
+            const hintEl = stickyPanelToggleBtn.querySelector('.sticky-panel__mobile-hint');
+            const iconEl = stickyPanelToggleBtn.querySelector('i');
+
+            stickyPanelToggleBtn.hidden = !isVisible;
+            if (!isVisible) return;
+
+            const label = isCompact ? '展开筛选与统计' : '收起筛选与统计';
+            const hint = isCompact ? '点击打开设置面板' : '点击缩小为一条';
+
+            textEl.textContent = label;
+            hintEl.textContent = hint;
+            iconEl.className = `fas ${isCompact ? 'fa-chevron-down' : 'fa-chevron-up'}`;
+            stickyPanelToggleBtn.setAttribute('title', label);
+            stickyPanelToggleBtn.setAttribute('aria-label', label);
+            stickyPanelToggleBtn.setAttribute('aria-expanded', String(!isCompact));
+        }
+
+        function getStickyPanelCollapseThreshold(isCompactViewport) {
+            return isCompactViewport ? STICKY_PANEL_COMPACT_SCROLL_Y : STICKY_PANEL_COLLAPSE_SCROLL_Y;
+        }
+
+        function updateStickyPanelState() {
+            const isCompactViewport = shouldUseCompactStickyPanel();
+            const collapseThreshold = getStickyPanelCollapseThreshold(isCompactViewport);
+
+            if (!isCompactViewport || window.scrollY <= collapseThreshold) {
+                stickyPanelPinnedOpen = false;
+            }
+
+            const isCompact = isCompactViewport
+                && window.scrollY > collapseThreshold
+                && !stickyPanelPinnedOpen;
+            const isMobileExpanded = isCompactViewport
+                && window.scrollY > collapseThreshold
+                && stickyPanelPinnedOpen;
+
+            stickyPanel.classList.toggle('is-compact', isCompact);
+            stickyPanel.classList.toggle('is-mobile-expanded', isMobileExpanded);
+            stickyPanelContent.setAttribute('aria-hidden', String(isCompact));
+            updateStickyPanelToggleButton();
+        }
+
+        function toggleStickyPanel() {
+            if (!shouldUseCompactStickyPanel()) return;
+
+            const isCompact = stickyPanel.classList.contains('is-compact');
+            stickyPanelPinnedOpen = isCompact;
+            updateStickyPanelState();
         }
 
         function toggleItemLimit() {
@@ -1268,6 +1453,9 @@
                             ${item.tag.map(t => `<span class="tag">${t.name}</span>`).join('')}
                         </div>
                         <div class="content-actions">
+                            <button class="action-btn copy-btn" data-action="copy" title="复制这条新闻原文" aria-label="复制这条新闻原文">
+                                <i class="fas fa-copy"></i> 复制
+                            </button>
                             <button class="action-btn attr-btn" data-action="attrs">全部属性</button>
                             <button class="${buttonClass}" ${onClick ? `onclick="${onClick}"` : ''}>
                                 <i class="fas fa-external-link-alt"></i> 原文
@@ -1282,6 +1470,44 @@
         function openDocUrl(url) {
             if (url) {
                 window.open(url, '_blank');
+            }
+        }
+
+        async function writeTextToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+
+        function flashActionButtonState(button, nextLabel) {
+            if (!button) return;
+
+            const originalHtml = button.dataset.originalHtml || button.innerHTML;
+            button.dataset.originalHtml = originalHtml;
+            button.innerHTML = nextLabel;
+
+            window.setTimeout(() => {
+                button.innerHTML = originalHtml;
+            }, 1200);
+        }
+
+        async function copyNewsItem(item, button) {
+            try {
+                await writeTextToClipboard(item.rich_text || '');
+                flashActionButtonState(button, '<i class="fas fa-check"></i> 已复制');
+            } catch (error) {
+                flashActionButtonState(button, '复制失败');
             }
         }
 
@@ -1555,6 +1781,19 @@
 
         function setupAttributeModal() {
             document.addEventListener('click', function(event) {
+                const copyBtn = event.target.closest('[data-action="copy"]');
+                if (copyBtn) {
+                    const itemEl = copyBtn.closest('.content-item');
+                    if (itemEl) {
+                        const itemId = Number(itemEl.dataset.id);
+                        const item = itemsById.get(itemId);
+                        if (item) {
+                            copyNewsItem(item, copyBtn);
+                        }
+                    }
+                    return;
+                }
+
                 const attrBtn = event.target.closest('[data-action="attrs"]');
                 if (attrBtn) {
                     const itemEl = attrBtn.closest('.content-item');
