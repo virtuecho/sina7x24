@@ -237,7 +237,16 @@
         }
         
         select,
-        input[type="date"] {
+        input[type="date"],
+        input[type="number"] {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: white;
+            font-size: 14px;
+        }
+
+        .developer-panel input[type="text"] {
             padding: 10px 15px;
             border: 1px solid #ddd;
             border-radius: 6px;
@@ -286,6 +295,64 @@
 
         .refresh-btn.toggle-btn.is-active:hover:not(:disabled) {
             background-color: #223140;
+        }
+
+        .developer-panel {
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.62);
+            border: 1px dashed rgba(116, 144, 196, 0.35);
+        }
+
+        .developer-panel[hidden] {
+            display: none !important;
+        }
+
+        .developer-panel__row {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .developer-panel__field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 200px;
+        }
+
+        .developer-panel__label {
+            font-size: 12px;
+            color: #5b6b82;
+            font-weight: 600;
+        }
+
+        .developer-panel__input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .developer-panel__input-row input[type="number"] {
+            width: 110px;
+        }
+
+        .developer-panel__hint,
+        .developer-panel__status {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #5b6b82;
+        }
+
+        .developer-panel__status.is-warning {
+            color: #b45309;
+        }
+
+        .developer-panel__status.is-ok {
+            color: #1f5f46;
         }
         
         .refreshing {
@@ -699,6 +766,12 @@
             .controls {
                 flex-direction: column;
             }
+
+            .developer-panel__row,
+            .developer-panel__input-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
             
             .search-box {
                 max-width: 100%;
@@ -770,13 +843,11 @@
             <div class="sticky-panel__content" id="stickyPanelContent">
             <div class="controls">
                 <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="搜索直播内容 / ID / 日期...">
+                    <input type="text" id="searchInput" placeholder="搜索直播内容 / ID / 时间...">
                     <i class="fas fa-search"></i>
                 </div>
                 
                 <div class="filter-box">
-                    <input type="date" id="dateFilter" aria-label="按日期过滤">
-
                     <select id="typeFilter">
                         <option value="all">全部</option>
                         <option value="10">A股</option>
@@ -794,10 +865,25 @@
                     <button class="refresh-btn" id="refreshBtn" type="button" title="立即拉取最新消息" aria-label="立即拉取最新消息">
                         <i class="fas fa-sync-alt" id="refreshIcon"></i> 刷新数据
                     </button>
-                    <button class="refresh-btn toggle-btn is-active" id="titleModeBtn" type="button" title="将【标题】单独提取显示" aria-label="将【标题】单独提取显示">标题单显：开</button>
-                    <button class="refresh-btn toggle-btn" id="refreshModeBtn" type="button" title="切换自动刷新频率" aria-label="切换自动刷新频率">自动刷新：20秒</button>
                     <button class="refresh-btn toggle-btn" id="itemLimitBtn" type="button" title="切换是否限制最多保留100条项目" aria-label="切换是否限制最多保留100条项目">项目上限：不限</button>
+                    <button class="refresh-btn toggle-btn" id="developerModeBtn" type="button" title="展开更多设置" aria-label="展开更多设置">更多设置：关</button>
                 </div>
+            </div>
+
+            <div class="developer-panel" id="developerPanel" hidden>
+                <div class="developer-panel__row">
+                    <button class="refresh-btn toggle-btn is-active" id="titleModeBtn" type="button" title="将【标题】单独提取显示" aria-label="将【标题】单独提取显示">标题单显：开</button>
+                    <div class="developer-panel__field">
+                        <label class="developer-panel__label" for="refreshSecondsInput">自动刷新秒数</label>
+                        <div class="developer-panel__input-row">
+                            <input type="number" id="refreshSecondsInput" min="1" step="1" inputmode="numeric" value="60" aria-label="自动刷新秒数">
+                            <button class="refresh-btn" id="applyRefreshSecondsBtn" type="button" title="应用自动刷新秒数" aria-label="应用自动刷新秒数">应用秒数</button>
+                        </div>
+                    </div>
+                    <button class="refresh-btn toggle-btn" id="pauseLatestRefreshBtn" type="button" title="暂停新数据自动刷新与手动刷新" aria-label="暂停新数据自动刷新与手动刷新">新数据刷新：开</button>
+                </div>
+                <div class="developer-panel__hint">低于60秒可能触发接口限频，默认建议保持 60 秒。</div>
+                <div class="developer-panel__status" id="idOrderStatus">ID顺序检测：未检测</div>
             </div>
 
             <div class="stats">
@@ -881,8 +967,7 @@
         const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&page_size=100&type=0';
         const REQUEST_TIMEOUT = 10000;
         const RETRY_DELAY_MS = 1200;
-        const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 20000;
-        const FAST_AUTO_REFRESH_INTERVAL_MS = 1000;
+        const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 60000;
         const ITEM_LIMIT_COUNT = 100;
         const HISTORY_VISIBILITY_MARGIN = 220;
         const STICKY_PANEL_MAX_WIDTH = 820;
@@ -904,16 +989,18 @@
         let isFirstLoad = true;
         let currentSearch = '';
         let currentType = 'all';
-        let currentDateFilter = '';
         let currentPage = 1;
         let isLoadingMore = false;
         let hasMorePages = true;
         let historyAutoLoadEnabled = true;
         let showStandaloneTitle = true;
+        let developerModeEnabled = false;
         let itemLimitEnabled = false;
+        let latestRefreshPaused = false;
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
+        let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         
         // DOM elements
         const contentList = document.getElementById('contentList');
@@ -921,11 +1008,15 @@
         const stickyPanelToggleBtn = document.getElementById('stickyPanelToggleBtn');
         const stickyPanelContent = document.getElementById('stickyPanelContent');
         const searchInput = document.getElementById('searchInput');
-        const dateFilterInput = document.getElementById('dateFilter');
         const typeFilter = document.getElementById('typeFilter');
         const refreshBtn = document.getElementById('refreshBtn');
+        const developerModeBtn = document.getElementById('developerModeBtn');
+        const developerPanel = document.getElementById('developerPanel');
         const titleModeBtn = document.getElementById('titleModeBtn');
-        const refreshModeBtn = document.getElementById('refreshModeBtn');
+        const refreshSecondsInput = document.getElementById('refreshSecondsInput');
+        const applyRefreshSecondsBtn = document.getElementById('applyRefreshSecondsBtn');
+        const pauseLatestRefreshBtn = document.getElementById('pauseLatestRefreshBtn');
+        const idOrderStatus = document.getElementById('idOrderStatus');
         const itemLimitBtn = document.getElementById('itemLimitBtn');
         const refreshIcon = document.getElementById('refreshIcon');
         const errorMessage = document.getElementById('errorMessage');
@@ -956,8 +1047,10 @@
 
             updateAutoRefreshStatus();
             updateHistoryToggleButton();
+            updateDeveloperModeButton();
+            updateDeveloperPanelVisibility();
             updateTitleModeButton();
-            updateRefreshModeButton();
+            updateLatestRefreshButton();
             updateItemLimitButton();
             fetchData();
             setupEventListeners();
@@ -973,11 +1066,6 @@
                 currentSearch = this.value.toLowerCase();
                 filterContent();
             });
-
-            dateFilterInput.addEventListener('change', function() {
-                currentDateFilter = this.value;
-                filterContent();
-            });
             
             typeFilter.addEventListener('change', function() {
                 currentType = this.value;
@@ -985,8 +1073,11 @@
             });
             
             refreshBtn.addEventListener('click', fetchData);
+            developerModeBtn.addEventListener('click', toggleDeveloperMode);
             titleModeBtn.addEventListener('click', toggleTitleMode);
-            refreshModeBtn.addEventListener('click', toggleRefreshMode);
+            applyRefreshSecondsBtn.addEventListener('click', applyAutoRefreshInterval);
+            refreshSecondsInput.addEventListener('keydown', handleRefreshSecondsInputKeydown);
+            pauseLatestRefreshBtn.addEventListener('click', toggleLatestRefreshPaused);
             itemLimitBtn.addEventListener('click', toggleItemLimit);
             stickyPanelToggleBtn.addEventListener('click', toggleStickyPanel);
             scrollTopBtn.addEventListener('click', scrollToTop);
@@ -1004,7 +1095,32 @@
         }
 
         function updateAutoRefreshStatus() {
-            updateRefreshModeButton();
+            updateRefreshIntervalControls();
+            updateRefreshButtonAvailability();
+        }
+
+        function updateDeveloperModeButton() {
+            const label = developerModeEnabled ? '更多设置：开' : '更多设置：关';
+            const tooltip = developerModeEnabled
+                ? '已展开更多设置；点击后收起高级功能'
+                : '点击展开更多设置';
+
+            developerModeBtn.textContent = label;
+            developerModeBtn.classList.toggle('is-active', developerModeEnabled);
+            developerModeBtn.setAttribute('title', tooltip);
+            developerModeBtn.setAttribute('aria-label', tooltip);
+            developerModeBtn.setAttribute('aria-expanded', String(developerModeEnabled));
+        }
+
+        function updateDeveloperPanelVisibility() {
+            developerPanel.hidden = !developerModeEnabled;
+        }
+
+        function toggleDeveloperMode() {
+            developerModeEnabled = !developerModeEnabled;
+            updateDeveloperModeButton();
+            updateDeveloperPanelVisibility();
+            updateIdOrderStatus();
         }
 
         function updateTitleModeButton() {
@@ -1025,26 +1141,71 @@
             filterContent();
         }
 
-        function updateRefreshModeButton() {
-            const isFastMode = autoRefreshIntervalMs === FAST_AUTO_REFRESH_INTERVAL_MS;
-            const label = isFastMode ? '极速刷新：1秒' : '自动刷新：20秒';
-            const tooltip = isFastMode
-                ? '当前每1秒自动刷新一次；点击切回每20秒刷新'
-                : '当前每20秒自动刷新一次；点击切换为每1秒刷新';
+        function updateRefreshIntervalControls() {
+            const seconds = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
+            const tooltip = `当前每 ${seconds} 秒自动刷新一次`;
 
-            refreshModeBtn.textContent = label;
-            refreshModeBtn.classList.toggle('is-active', isFastMode);
-            refreshModeBtn.setAttribute('title', tooltip);
-            refreshModeBtn.setAttribute('aria-label', tooltip);
+            refreshSecondsInput.value = String(seconds);
+            applyRefreshSecondsBtn.setAttribute('title', tooltip);
+            applyRefreshSecondsBtn.setAttribute('aria-label', tooltip);
         }
 
-        function toggleRefreshMode() {
-            autoRefreshIntervalMs = autoRefreshIntervalMs === FAST_AUTO_REFRESH_INTERVAL_MS
-                ? DEFAULT_AUTO_REFRESH_INTERVAL_MS
-                : FAST_AUTO_REFRESH_INTERVAL_MS;
+        function applyAutoRefreshInterval() {
+            const nextSeconds = Number(refreshSecondsInput.value);
 
+            if (!Number.isFinite(nextSeconds) || nextSeconds < 1) {
+                showError('自动刷新秒数至少需要 1 秒。');
+                updateRefreshIntervalControls();
+                return;
+            }
+
+            autoRefreshIntervalMs = Math.round(nextSeconds * 1000);
+            hideError();
             updateAutoRefreshStatus();
             startAutoRefresh();
+        }
+
+        function handleRefreshSecondsInputKeydown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                applyAutoRefreshInterval();
+            }
+        }
+
+        function updateLatestRefreshButton() {
+            const label = latestRefreshPaused ? '新数据刷新：停' : '新数据刷新：开';
+            const tooltip = latestRefreshPaused
+                ? '当前已暂停新数据自动刷新和手动刷新；点击恢复'
+                : '当前允许新数据自动刷新和手动刷新；点击暂停';
+
+            pauseLatestRefreshBtn.textContent = label;
+            pauseLatestRefreshBtn.classList.toggle('is-active', latestRefreshPaused);
+            pauseLatestRefreshBtn.setAttribute('title', tooltip);
+            pauseLatestRefreshBtn.setAttribute('aria-label', tooltip);
+            pauseLatestRefreshBtn.setAttribute('aria-pressed', String(latestRefreshPaused));
+            pauseLatestRefreshBtn.disabled = false;
+        }
+
+        function toggleLatestRefreshPaused() {
+            latestRefreshPaused = !latestRefreshPaused;
+            updateLatestRefreshButton();
+            updateRefreshButtonAvailability();
+            startAutoRefresh();
+
+            if (!latestRefreshPaused) {
+                fetchData();
+            }
+        }
+
+        function updateRefreshButtonAvailability() {
+            const isDisabled = isRefreshing || latestRefreshPaused;
+            const tooltip = latestRefreshPaused
+                ? '更多设置中已暂停新数据刷新'
+                : '立即拉取最新消息';
+
+            refreshBtn.disabled = isDisabled;
+            refreshBtn.setAttribute('title', tooltip);
+            refreshBtn.setAttribute('aria-label', tooltip);
         }
 
         function updateItemLimitButton() {
@@ -1193,9 +1354,12 @@
             });
         }
 
-        // Fetch JSON with timeout and unlimited retries.
-        async function fetchJson(url, { page, purpose } = {}) {
+        // Fetch JSON with timeout and configurable retries.
+        async function fetchJson(url, { page, purpose, maxRetries = Number.POSITIVE_INFINITY } = {}) {
             const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
+            const maxAttempts = Number.isFinite(maxRetries)
+                ? Math.max(1, Math.floor(maxRetries) + 1)
+                : Number.POSITIVE_INFINITY;
             let attempt = 0;
 
             while (true) {
@@ -1224,6 +1388,10 @@
                         ? new Error(`请求超时（>${REQUEST_TIMEOUT / 1000}秒）`)
                         : error;
 
+                    if (attempt >= maxAttempts) {
+                        throw normalizedError;
+                    }
+
                     const retryDelay = Math.min(RETRY_DELAY_MS * Math.min(attempt, 10), 15000);
                     console.warn(`[${new Date().toLocaleTimeString()}] Failed ${contextLabel}, attempt ${attempt}: ${normalizedError.message}. Retrying in ${Math.round(retryDelay / 1000)}s.`);
                     await sleep(retryDelay);
@@ -1235,7 +1403,7 @@
         
         // Fetch data
         async function fetchData() {
-            if (isRefreshing) return;
+            if (isRefreshing || latestRefreshPaused) return;
 
             try {
                 isRefreshing = true;
@@ -1258,22 +1426,46 @@
         // Process data
         function processData(data, { page, mode }) {
             if (data.result && data.result.status.code === 0) {
-                const newItems = data.result.data.feed.list;
+                const newItems = Array.isArray(data.result.data.feed.list)
+                    ? data.result.data.feed.list
+                    : [];
                 const pageInfo = data.result.data.feed.page_info;
+                const previousNewestId = Number(allItems[0]?.id ?? Number.NEGATIVE_INFINITY);
+                const previousOldestId = Number(allItems[allItems.length - 1]?.id ?? Number.POSITIVE_INFINITY);
+                const idOrderAnalysis = analyzeIdOrder(newItems);
+                const normalizedItems = normalizeItemsByIdDesc(newItems);
                 
                 // Merge new data and keep existing content
-                const { addedItems, updatedItems } = mergeItems(newItems, { prepend: mode === 'prepend' });
+                const { addedItems, updatedItems } = mergeItems(normalizedItems, { prepend: mode === 'prepend' });
+                const prependOrderDrift = mode === 'prepend'
+                    && addedItems.some(item => Number(item.id) < previousNewestId);
+                const appendOrderDrift = mode === 'append'
+                    && addedItems.some(item => Number(item.id) > previousOldestId);
+                const orderDisorderDetected = !idOrderAnalysis.isDescending || prependOrderDrift || appendOrderDrift;
+
+                updateIdOrderStatus({
+                    purpose: mode === 'prepend' ? 'latest' : 'history',
+                    page,
+                    checkedCount: idOrderAnalysis.count,
+                    disorderDetected: orderDisorderDetected,
+                    outOfOrderCount: idOrderAnalysis.outOfOrderCount
+                });
+
+                if (orderDisorderDetected && addedItems.length > 0) {
+                    sortAllItemsByIdDesc();
+                }
+
                 const trimmedCount = enforceItemLimit();
                 
                 lastUpdateTime = new Date();
                 updateStats(addedItems.length, updatedItems.length);
                 
-                if (isFirstLoad || trimmedCount > 0) {
+                if (isFirstLoad || trimmedCount > 0 || (orderDisorderDetected && addedItems.length > 0)) {
                     filterContent();
                     isFirstLoad = false;
                 } else {
                     // Filter new items based on current criteria
-                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType, currentDateFilter);
+                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType);
                     if (filteredNewItems.length > 0) {
                         if (mode === 'prepend') {
                             renderNewItems(filteredNewItems);
@@ -1294,7 +1486,80 @@
                 return { addedItems: [], updatedItems: [], rawItems: [], pageInfo: null };
             }
         }
-        
+
+        function analyzeIdOrder(items) {
+            const ids = items
+                .map(item => Number(item?.id))
+                .filter(id => Number.isFinite(id));
+
+            let outOfOrderCount = 0;
+            for (let index = 1; index < ids.length; index += 1) {
+                if (ids[index] > ids[index - 1]) {
+                    outOfOrderCount += 1;
+                }
+            }
+
+            return {
+                count: ids.length,
+                isDescending: outOfOrderCount === 0,
+                outOfOrderCount
+            };
+        }
+
+        function normalizeItemsByIdDesc(items) {
+            return [...items].sort((left, right) => Number(right.id) - Number(left.id));
+        }
+
+        function sortAllItemsByIdDesc() {
+            allItems.sort((left, right) => Number(right.id) - Number(left.id));
+        }
+
+        function updateIdOrderStatus({
+            purpose,
+            page,
+            checkedCount,
+            disorderDetected,
+            outOfOrderCount
+        } = {}) {
+            if (purpose) {
+                const purposeLabel = purpose === 'latest' ? '最新页' : '历史页';
+                lastIdOrderStatus = disorderDetected
+                    ? {
+                        text: `ID顺序检测：${purposeLabel} page=${page} 发现异常，已按 ID 降序整理`,
+                        warning: true
+                    }
+                    : {
+                        text: checkedCount > 1
+                            ? `ID顺序检测：${purposeLabel} page=${page} 正常`
+                            : `ID顺序检测：${purposeLabel} page=${page} 样本不足`,
+                        warning: false
+                    };
+
+                if (disorderDetected && outOfOrderCount > 0) {
+                    lastIdOrderStatus.text += `（逆序点 ${outOfOrderCount} 处）`;
+                }
+            }
+
+            idOrderStatus.textContent = lastIdOrderStatus.text;
+            idOrderStatus.classList.toggle('is-warning', Boolean(lastIdOrderStatus.warning));
+            idOrderStatus.classList.toggle('is-ok', !lastIdOrderStatus.warning && lastIdOrderStatus.text !== 'ID顺序检测：未检测');
+        }
+
+        function clearLoadedItems() {
+            allItems = [];
+            itemsById = new Map();
+            currentPage = 1;
+            hasMorePages = true;
+            isLoadingMore = false;
+            contentList.innerHTML = '';
+        }
+
+        function replaceLoadedItems(items) {
+            const normalized = normalizeItemsByIdDesc(items).map(item => ({ ...item }));
+            allItems = normalized;
+            itemsById = new Map(normalized.map(item => [item.id, item]));
+        }
+
         // Merge new items into the existing list
         function mergeItems(newItems, { prepend = false } = {}) {
             const addedItems = [];
@@ -1351,12 +1616,11 @@
         }
         
         // Filter items by criteria
-        function filterItemsByCriteria(items, searchText, selectedType, selectedDate) {
+        function filterItemsByCriteria(items, searchText, selectedType) {
             return items.filter(item => {
                 const matchesSearch = getSearchableText(item).includes(searchText);
                 const matchesType = selectedType === 'all' || item.tag.some(t => t.id.toString() === selectedType);
-                const matchesDate = !selectedDate || getItemDateKey(item) === selectedDate;
-                return matchesSearch && matchesType && matchesDate;
+                return matchesSearch && matchesType;
             });
         }
         
@@ -1819,7 +2083,7 @@
         
         // Filter content
         function filterContent() {
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, currentDateFilter);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
             
             updateVisibleStats(filteredItems.length);
             renderContent(filteredItems);
@@ -1834,7 +2098,7 @@
             updatedItemsEl.textContent = updatedCount;
             
             // Update visible item count
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, currentDateFilter);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
             visibleItemsEl.textContent = filteredItems.length;
         }
         
@@ -1847,11 +2111,11 @@
         function setRefreshingState(refreshing) {
             if (refreshing) {
                 refreshIcon.classList.add('refreshing');
-                refreshBtn.disabled = true;
             } else {
                 refreshIcon.classList.remove('refreshing');
-                refreshBtn.disabled = false;
             }
+
+            updateRefreshButtonAvailability();
         }
         
         // Show global loading indicator
@@ -2022,7 +2286,12 @@
             if (refreshInterval) {
                 clearInterval(refreshInterval);
             }
-            
+
+            if (latestRefreshPaused) {
+                refreshInterval = null;
+                return;
+            }
+
             refreshInterval = setInterval(fetchData, autoRefreshIntervalMs);
         }
 
