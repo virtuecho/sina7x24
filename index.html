@@ -622,19 +622,16 @@
 
     <script>
         // API endpoint
-        const API_BASE = 'https://zhibo.sina.com.cn/api/zhibo/feed';
+        // Use the local same-origin proxy instead of public CORS relay services.
+        const API_BASE = '/api/zhibo/feed';
         const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&page_size=100&type=0';
+        const REQUEST_TIMEOUT = 10000;
+        const MAX_FETCH_RETRIES = 3;
+        const RETRY_DELAY_MS = 1200;
         
         function buildApiUrl(page) {
             return `${API_BASE}?${API_DEFAULT_PARAMS}&page=${page}`;
         }
-        
-        // Connection methods list - try direct first, then CORS proxies in order
-        const CONNECTION_METHODS = [
-            { name: "direct", url: url => url, isDirect: true },
-            { name: "corsproxy.io", url: url => `https://corsproxy.io/?${encodeURIComponent(url)}`, isDirect: false },
-            { name: "cors.lol", url: url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`, isDirect: false },
-        ];
 
         // Global variables
         let allItems = [];
@@ -644,11 +641,11 @@
         let isFirstLoad = true;
         let currentSearch = '';
         let currentType = 'all';
-        let currentMethodIndex = 0; // Start from direct
         let currentPage = 1;
         let maxPage = null;
         let isLoadingMore = false;
         let hasMorePages = true;
+        let isRefreshing = false;
         
         // DOM elements
         const contentList = document.getElementById('contentList');
@@ -674,6 +671,11 @@
         
         // Initialization
         document.addEventListener('DOMContentLoaded', function() {
+            if (window.location.protocol === 'file:') {
+                showError('请通过 Node 代理服务访问此页面，例如运行 npm install && npm start 后打开 http://127.0.0.1:3000 。');
+                return;
+            }
+
             fetchData();
             setupEventListeners();
             startAutoRefresh();
@@ -696,81 +698,71 @@
             refreshBtn.addEventListener('click', fetchData);
         }
         
-        // Fetch with timeout
-        function fetchWithTimeout(url, options = {}, timeout = 10000) {
-            return Promise.race([
-                fetch(url, { 
-                    ...options,
-                    mode: options.mode || 'cors'
-                }),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('请求超时')), timeout)
-                )
-            ]);
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
         }
-        
-        // Try multiple connection methods to fetch data
-        async function fetchWithFallback(url, { page, purpose } = {}) {
+
+        // Fetch JSON with timeout and bounded retries.
+        async function fetchJson(url, { page, purpose } = {}) {
             let lastError = null;
-            let attempts = 0;
-            const totalMethods = CONNECTION_METHODS.length;
-            
-            // Loop until data is fetched successfully
-            while (true) {
-                const methodIndex = (currentMethodIndex + attempts) % totalMethods;
-                const method = CONNECTION_METHODS[methodIndex];
-                const targetUrl = method.url(url);
-                
+            const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
+
+            for (let attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
                 try {
-                    const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
-                    console.info(`[${new Date().toLocaleTimeString()}] Fetch ${contextLabel} via ${method.name} (${methodIndex + 1}/${totalMethods})`);
-                    
-                    const fetchOptions = {
-                        timeout: 10000,
-                        mode: method.isDirect ? 'cors' : 'cors'
-                    };
-                    
-                    const response = await fetchWithTimeout(targetUrl, fetchOptions);
-                    
+                    console.info(`[${new Date().toLocaleTimeString()}] Fetch ${contextLabel}, attempt ${attempt}/${MAX_FETCH_RETRIES}`);
+
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                        signal: controller.signal
+                    });
+
                     if (!response.ok) {
-                        throw new Error(`HTTP error ${response.status}`);
+                        throw new Error(`HTTP ${response.status}`);
                     }
-                    
-                    // On success, update the current method index
-                    currentMethodIndex = (methodIndex + 1) % totalMethods;
+
                     return await response.json();
                 } catch (error) {
-                    const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
-                    console.warn(`[${new Date().toLocaleTimeString()}] Failed ${contextLabel} via ${method.name}: ${error.message}`);
-                    lastError = error;
-                    
-                    // Track attempt count
-                    attempts++;
-                    
-                    // If all methods have been tried once, log a warning
-                    if (attempts % totalMethods === 0 && attempts > 0) {
-                        const rounds = attempts / totalMethods;
-                        console.warn(`[${new Date().toLocaleTimeString()}] All methods failed for ${contextLabel}. Retrying (round ${rounds})...`);
+                    lastError = error.name === 'AbortError'
+                        ? new Error(`请求超时（>${REQUEST_TIMEOUT / 1000}秒）`)
+                        : error;
+
+                    console.warn(`[${new Date().toLocaleTimeString()}] Failed ${contextLabel}, attempt ${attempt}/${MAX_FETCH_RETRIES}: ${lastError.message}`);
+
+                    if (attempt < MAX_FETCH_RETRIES) {
+                        await sleep(RETRY_DELAY_MS * attempt);
                     }
-                    
-                    // Wait briefly before trying the next method
-                    await new Promise(resolve => setTimeout(resolve, 800));
+                } finally {
+                    clearTimeout(timeoutId);
                 }
             }
+
+            throw lastError || new Error('请求失败');
         }
         
         // Fetch data
         async function fetchData() {
+            if (isRefreshing) return;
+
             try {
+                isRefreshing = true;
                 setRefreshingState(true);
                 showGlobalLoading();
                 hideError();
                 
-                const data = await fetchWithFallback(buildApiUrl(1), { page: 1, purpose: 'latest' });
+                const data = await fetchJson(buildApiUrl(1), { page: 1, purpose: 'latest' });
                 processData(data, { page: 1, mode: 'prepend' });
             } catch (error) {
-                showError(`获取数据失败: ${error.message}。正在继续尝试其他连接方式...`);
+                showError(`获取数据失败：${error.message}。请确认本地代理服务正在运行，并稍后重试。`);
             } finally {
+                isRefreshing = false;
                 setRefreshingState(false);
                 hideGlobalLoading();
             }
@@ -1359,7 +1351,7 @@
                     return;
                 }
                 
-                const data = await fetchWithFallback(buildApiUrl(nextPage), { page: nextPage, purpose: 'history' });
+                const data = await fetchJson(buildApiUrl(nextPage), { page: nextPage, purpose: 'history' });
                 processData(data, { page: nextPage, mode: 'append' });
                 
                 currentPage = nextPage;
@@ -1370,7 +1362,7 @@
                     loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                 }
             } catch (error) {
-                loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                loadMoreStatus.textContent = `加载失败：${error.message}`;
             } finally {
                 isLoadingMore = false;
             }
