@@ -626,8 +626,8 @@
         const API_BASE = '/api/zhibo/feed';
         const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&page_size=100&type=0';
         const REQUEST_TIMEOUT = 10000;
-        const MAX_FETCH_RETRIES = 3;
         const RETRY_DELAY_MS = 1200;
+        const AUTO_REFRESH_INTERVAL_MS = 20000;
         
         function buildApiUrl(page) {
             return `${API_BASE}?${API_DEFAULT_PARAMS}&page=${page}`;
@@ -642,7 +642,6 @@
         let currentSearch = '';
         let currentType = 'all';
         let currentPage = 1;
-        let maxPage = null;
         let isLoadingMore = false;
         let hasMorePages = true;
         let isRefreshing = false;
@@ -702,18 +701,17 @@
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
-        // Fetch JSON with timeout and bounded retries.
+        // Fetch JSON with timeout and unlimited retries.
         async function fetchJson(url, { page, purpose } = {}) {
-            let lastError = null;
             const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
+            let attempt = 0;
 
-            for (let attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt++) {
+            while (true) {
+                attempt += 1;
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
                 try {
-                    console.info(`[${new Date().toLocaleTimeString()}] Fetch ${contextLabel}, attempt ${attempt}/${MAX_FETCH_RETRIES}`);
-
                     const response = await fetch(url, {
                         method: 'GET',
                         cache: 'no-store',
@@ -730,21 +728,17 @@
 
                     return await response.json();
                 } catch (error) {
-                    lastError = error.name === 'AbortError'
+                    const normalizedError = error.name === 'AbortError'
                         ? new Error(`请求超时（>${REQUEST_TIMEOUT / 1000}秒）`)
                         : error;
 
-                    console.warn(`[${new Date().toLocaleTimeString()}] Failed ${contextLabel}, attempt ${attempt}/${MAX_FETCH_RETRIES}: ${lastError.message}`);
-
-                    if (attempt < MAX_FETCH_RETRIES) {
-                        await sleep(RETRY_DELAY_MS * attempt);
-                    }
+                    const retryDelay = Math.min(RETRY_DELAY_MS * Math.min(attempt, 10), 15000);
+                    console.warn(`[${new Date().toLocaleTimeString()}] Failed ${contextLabel}, attempt ${attempt}: ${normalizedError.message}. Retrying in ${Math.round(retryDelay / 1000)}s.`);
+                    await sleep(retryDelay);
                 } finally {
                     clearTimeout(timeoutId);
                 }
             }
-
-            throw lastError || new Error('请求失败');
         }
         
         // Fetch data
@@ -774,11 +768,6 @@
                 const newItems = data.result.data.feed.list;
                 const pageInfo = data.result.data.feed.page_info;
                 
-                if (pageInfo && typeof pageInfo.totalPage === 'number') {
-                    maxPage = pageInfo.totalPage;
-                    hasMorePages = currentPage < maxPage;
-                }
-                
                 // Merge new data and keep existing content
                 const { addedItems, updatedItems } = mergeItems(newItems, { prepend: mode === 'prepend' });
                 
@@ -805,10 +794,10 @@
                     }
                 }
                 
-                return { addedItems, updatedItems };
+                return { addedItems, updatedItems, rawItems: newItems, pageInfo };
             } else {
                 showError('API返回的数据格式不正确');
-                return { addedItems: [], updatedItems: [] };
+                return { addedItems: [], updatedItems: [], rawItems: [], pageInfo: null };
             }
         }
         
@@ -1333,7 +1322,7 @@
                 clearInterval(refreshInterval);
             }
             
-            refreshInterval = setInterval(fetchData, 60000); // Refresh every 60 seconds
+            refreshInterval = setInterval(fetchData, AUTO_REFRESH_INTERVAL_MS); // Refresh every 20 seconds
         }
 
         // Load older pages when scrolling down
@@ -1345,19 +1334,14 @@
             
             try {
                 const nextPage = currentPage + 1;
-                if (maxPage !== null && nextPage > maxPage) {
-                    hasMorePages = false;
-                    loadMoreStatus.textContent = '没有更多内容了';
-                    return;
-                }
-                
                 const data = await fetchJson(buildApiUrl(nextPage), { page: nextPage, purpose: 'history' });
-                processData(data, { page: nextPage, mode: 'append' });
+                const result = processData(data, { page: nextPage, mode: 'append' });
                 
                 currentPage = nextPage;
-                if (maxPage !== null && currentPage >= maxPage) {
+
+                if (result.rawItems.length === 0 || result.addedItems.length === 0) {
                     hasMorePages = false;
-                    loadMoreStatus.textContent = '没有更多内容了';
+                    loadMoreStatus.textContent = '已到接口当前可提供的最旧内容';
                 } else {
                     loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                 }
