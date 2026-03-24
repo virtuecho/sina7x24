@@ -107,7 +107,8 @@
             flex-wrap: wrap;
         }
         
-        select {
+        select,
+        input[type="date"] {
             padding: 10px 15px;
             border: 1px solid #ddd;
             border-radius: 6px;
@@ -519,7 +520,7 @@
             <div class="header-content">
                 <h1><i class="fas fa-broadcast-tower"></i> 新浪财经7*24小时全球实时财经新闻直播</h1>
                 <div>
-                    <span>自动刷新已启用 (60秒)</span>
+                    <span id="autoRefreshStatus">自动刷新已启用 (20秒)</span>
                 </div>
             </div>
         </div>
@@ -530,11 +531,13 @@
         
         <div class="controls">
             <div class="search-box">
-                <input type="text" id="searchInput" placeholder="搜索直播内容...">
+                <input type="text" id="searchInput" placeholder="搜索直播内容 / ID / 日期...">
                 <i class="fas fa-search"></i>
             </div>
             
             <div class="filter-box">
+                <input type="date" id="dateFilter" aria-label="按日期过滤">
+
                 <select id="typeFilter">
                     <option value="all">全部</option>
                     <option value="10">A股</option>
@@ -641,6 +644,7 @@
         let isFirstLoad = true;
         let currentSearch = '';
         let currentType = 'all';
+        let currentDateFilter = '';
         let currentPage = 1;
         let isLoadingMore = false;
         let hasMorePages = true;
@@ -649,9 +653,11 @@
         // DOM elements
         const contentList = document.getElementById('contentList');
         const searchInput = document.getElementById('searchInput');
+        const dateFilterInput = document.getElementById('dateFilter');
         const typeFilter = document.getElementById('typeFilter');
         const refreshBtn = document.getElementById('refreshBtn');
         const refreshIcon = document.getElementById('refreshIcon');
+        const autoRefreshStatus = document.getElementById('autoRefreshStatus');
         const errorMessage = document.getElementById('errorMessage');
         const totalItemsEl = document.getElementById('totalItems');
         const lastUpdateEl = document.getElementById('lastUpdate');
@@ -675,6 +681,7 @@
                 return;
             }
 
+            updateAutoRefreshStatus();
             fetchData();
             setupEventListeners();
             startAutoRefresh();
@@ -688,6 +695,11 @@
                 currentSearch = this.value.toLowerCase();
                 filterContent();
             });
+
+            dateFilterInput.addEventListener('change', function() {
+                currentDateFilter = this.value;
+                filterContent();
+            });
             
             typeFilter.addEventListener('change', function() {
                 currentType = this.value;
@@ -699,6 +711,10 @@
         
         function sleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function updateAutoRefreshStatus() {
+            autoRefreshStatus.textContent = `自动刷新已启用 (${Math.round(AUTO_REFRESH_INTERVAL_MS / 1000)}秒)`;
         }
 
         // Fetch JSON with timeout and unlimited retries.
@@ -753,6 +769,7 @@
                 
                 const data = await fetchJson(buildApiUrl(1), { page: 1, purpose: 'latest' });
                 processData(data, { page: 1, mode: 'prepend' });
+                updateHistoryStatus();
             } catch (error) {
                 showError(`获取数据失败：${error.message}。请确认本地代理服务正在运行，并稍后重试。`);
             } finally {
@@ -779,7 +796,7 @@
                     isFirstLoad = false;
                 } else {
                     // Filter new items based on current criteria
-                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType);
+                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType, currentDateFilter);
                     if (filteredNewItems.length > 0) {
                         if (mode === 'prepend') {
                             renderNewItems(filteredNewItems);
@@ -842,11 +859,12 @@
         }
         
         // Filter items by criteria
-        function filterItemsByCriteria(items, searchText, selectedType) {
+        function filterItemsByCriteria(items, searchText, selectedType, selectedDate) {
             return items.filter(item => {
-                const matchesSearch = item.rich_text.toLowerCase().includes(searchText);
+                const matchesSearch = getSearchableText(item).includes(searchText);
                 const matchesType = selectedType === 'all' || item.tag.some(t => t.id.toString() === selectedType);
-                return matchesSearch && matchesType;
+                const matchesDate = !selectedDate || getItemDateKey(item) === selectedDate;
+                return matchesSearch && matchesType && matchesDate;
             });
         }
         
@@ -1250,7 +1268,7 @@
         
         // Filter content
         function filterContent() {
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, currentDateFilter);
             
             updateVisibleStats(filteredItems.length);
             renderContent(filteredItems);
@@ -1259,11 +1277,13 @@
         // Update stats
         function updateStats(addedCount = 0, updatedCount = 0) {
             totalItemsEl.textContent = allItems.length;
-            lastUpdateEl.textContent = lastUpdateTime ? lastUpdateTime.toLocaleTimeString() : '--:--';
+            lastUpdateEl.textContent = lastUpdateTime
+                ? lastUpdateTime.toLocaleTimeString('zh-CN', { hour12: false })
+                : '--:--';
             updatedItemsEl.textContent = updatedCount;
             
             // Update visible item count
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, currentDateFilter);
             visibleItemsEl.textContent = filteredItems.length;
         }
         
@@ -1309,11 +1329,93 @@
         // Format time
         function formatTime(timeString) {
             try {
-                const date = new Date(timeString);
-                return date.toLocaleString('zh-CN');
+                const date = parseApiTime(timeString);
+                if (!date) return timeString;
+                return date.toLocaleString('zh-CN', { hour12: false });
             } catch (e) {
                 return timeString;
             }
+        }
+
+        function parseApiTime(timeString) {
+            if (typeof timeString !== 'string' || timeString.trim() === '') return null;
+
+            const match = timeString.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})$/);
+            if (!match) {
+                const fallback = new Date(timeString);
+                return Number.isNaN(fallback.getTime()) ? null : fallback;
+            }
+
+            const year = Number(match[1]);
+            const month = Number(match[2]);
+            const day = Number(match[3]);
+            const hour = Number(match[4]);
+            const minute = Number(match[5]);
+            const second = Number(match[6]);
+
+            // Sina feed timestamps are interpreted as Asia/Shanghai source time.
+            return new Date(Date.UTC(year, month - 1, day, hour - 8, minute, second));
+        }
+
+        function padNumber(value) {
+            return String(value).padStart(2, '0');
+        }
+
+        function formatDateKey(date) {
+            return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`;
+        }
+
+        function getItemDateKey(item) {
+            const date = parseApiTime(item.create_time);
+            return date ? formatDateKey(date) : '';
+        }
+
+        function getSearchableText(item) {
+            return [
+                item.rich_text,
+                String(item.id ?? ''),
+                item.create_time,
+                formatTime(item.create_time),
+                getItemDateKey(item)
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+        }
+
+        function getOldestLoadedItem() {
+            return allItems.length > 0 ? allItems[allItems.length - 1] : null;
+        }
+
+        function getHistoryStatusText() {
+            const oldestItem = getOldestLoadedItem();
+
+            if (!oldestItem) {
+                return `已加载到第 ${currentPage} 页`;
+            }
+
+            return `已加载到第 ${currentPage} 页 / 最旧 ID ${oldestItem.id} / 最旧时间 ${formatTime(oldestItem.create_time)}`;
+        }
+
+        function updateHistoryStatus({ loading = false, exhausted = false, error = '' } = {}) {
+            const baseText = getHistoryStatusText();
+
+            if (error) {
+                loadMoreStatus.textContent = `${baseText} / ${error}`;
+                return;
+            }
+
+            if (exhausted) {
+                loadMoreStatus.textContent = `${baseText} / 已到接口当前可提供的最旧内容`;
+                return;
+            }
+
+            if (loading) {
+                loadMoreStatus.innerHTML = `${baseText} <i class="fas fa-spinner fa-spin"></i>`;
+                return;
+            }
+
+            loadMoreStatus.textContent = baseText;
         }
         
         // Auto-refresh
@@ -1330,7 +1432,7 @@
             if (isFirstLoad || isLoadingMore || !hasMorePages) return;
             
             isLoadingMore = true;
-            loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            updateHistoryStatus({ loading: true });
             
             try {
                 const nextPage = currentPage + 1;
@@ -1341,12 +1443,12 @@
 
                 if (result.rawItems.length === 0 || result.addedItems.length === 0) {
                     hasMorePages = false;
-                    loadMoreStatus.textContent = '已到接口当前可提供的最旧内容';
+                    updateHistoryStatus({ exhausted: true });
                 } else {
-                    loadMoreStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    updateHistoryStatus();
                 }
             } catch (error) {
-                loadMoreStatus.textContent = `加载失败：${error.message}`;
+                updateHistoryStatus({ error: `加载失败：${error.message}` });
             } finally {
                 isLoadingMore = false;
             }
@@ -1354,7 +1456,7 @@
 
         function setupInfiniteScroll() {
             if (!('IntersectionObserver' in window)) {
-                loadMoreStatus.textContent = '';
+                updateHistoryStatus();
                 return;
             }
             
