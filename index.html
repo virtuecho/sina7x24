@@ -70,6 +70,51 @@
             margin: 20px 0;
             flex-wrap: wrap;
         }
+
+        .sticky-panel {
+            position: sticky;
+            top: 10px;
+            z-index: 900;
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(231, 239, 255, 0.95), rgba(243, 247, 255, 0.92));
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(116, 144, 196, 0.28);
+            box-shadow: 0 10px 24px rgba(74, 105, 189, 0.14);
+        }
+
+        .sticky-panel .controls {
+            margin: 0 0 10px;
+            gap: 12px;
+        }
+
+        .sticky-panel .stats {
+            margin-bottom: 0;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            box-shadow: none;
+        }
+
+        .sticky-panel .stat-item {
+            padding: 8px 10px;
+            border-radius: 12px;
+            background: rgba(74, 105, 189, 0.08);
+        }
+
+        .sticky-panel .stat-number {
+            font-size: 20px;
+            line-height: 1.1;
+        }
+
+        .sticky-panel .stat-label {
+            font-size: 12px;
+        }
         
         .search-box {
             flex: 1;
@@ -472,12 +517,57 @@
             color: #777;
             border-top: 1px solid #eee;
         }
+
+        .floating-actions {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            z-index: 1300;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .floating-btn {
+            width: 54px;
+            height: 54px;
+            border: none;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+            background: linear-gradient(135deg, #2c3e50, #4a69bd);
+            box-shadow: 0 14px 28px rgba(44, 62, 80, 0.25);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .floating-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 36px rgba(44, 62, 80, 0.3);
+        }
+
+        .floating-btn:focus-visible {
+            outline: 3px solid rgba(74, 105, 189, 0.3);
+            outline-offset: 2px;
+        }
+
+        .floating-btn.is-off {
+            background: linear-gradient(135deg, #a65c2d, #d0843b);
+        }
         
         @media (max-width: 768px) {
             .header-content {
                 flex-direction: column;
                 text-align: center;
                 gap: 15px;
+            }
+
+            .sticky-panel {
+                top: 8px;
+                padding: 12px;
             }
             
             .controls {
@@ -491,6 +581,11 @@
             .stats {
                 flex-direction: column;
                 gap: 15px;
+            }
+
+            .sticky-panel .stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
             }
             
             .content-header {
@@ -508,6 +603,17 @@
             .content-actions {
                 align-self: stretch;
                 justify-content: space-between;
+            }
+
+            .floating-actions {
+                right: 14px;
+                bottom: 14px;
+            }
+
+            .floating-btn {
+                width: 48px;
+                height: 48px;
+                border-radius: 14px;
             }
         }
     </style>
@@ -529,51 +635,53 @@
     <div class="container">
         <div class="error" id="errorMessage"></div>
         
-        <div class="controls">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="搜索直播内容 / ID / 日期...">
-                <i class="fas fa-search"></i>
-            </div>
-            
-            <div class="filter-box">
-                <input type="date" id="dateFilter" aria-label="按日期过滤">
-
-                <select id="typeFilter">
-                    <option value="all">全部</option>
-                    <option value="10">A股</option>
-                    <option value="1">宏观</option>
-                    <option value="3">公司</option>
-                    <option value="4">数据</option>
-                    <option value="5">市场</option>
-                    <option value="102">国际</option>
-                    <option value="6">观点</option>
-                    <option value="7">央行</option>
-                    <option value="8">其他</option>
-                    <option value="9">焦点</option>
-                </select>
+        <div class="sticky-panel">
+            <div class="controls">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="搜索直播内容 / ID / 日期...">
+                    <i class="fas fa-search"></i>
+                </div>
                 
-                <button class="refresh-btn" id="refreshBtn">
-                    <i class="fas fa-sync-alt" id="refreshIcon"></i> 刷新数据
-                </button>
+                <div class="filter-box">
+                    <input type="date" id="dateFilter" aria-label="按日期过滤">
+
+                    <select id="typeFilter">
+                        <option value="all">全部</option>
+                        <option value="10">A股</option>
+                        <option value="1">宏观</option>
+                        <option value="3">公司</option>
+                        <option value="4">数据</option>
+                        <option value="5">市场</option>
+                        <option value="102">国际</option>
+                        <option value="6">观点</option>
+                        <option value="7">央行</option>
+                        <option value="8">其他</option>
+                        <option value="9">焦点</option>
+                    </select>
+                    
+                    <button class="refresh-btn" id="refreshBtn">
+                        <i class="fas fa-sync-alt" id="refreshIcon"></i> 刷新数据
+                    </button>
+                </div>
             </div>
-        </div>
-        
-        <div class="stats">
-            <div class="stat-item">
-                <div class="stat-number" id="totalItems">0</div>
-                <div class="stat-label">总项目数</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="lastUpdate">--:--</div>
-                <div class="stat-label">最后更新时间</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="visibleItems">0</div>
-                <div class="stat-label">显示项目</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="updatedItems">0</div>
-                <div class="stat-label">原文链接更新项目</div>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalItems">0</div>
+                    <div class="stat-label">总项目数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="lastUpdate">--:--</div>
+                    <div class="stat-label">最后更新时间</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="visibleItems">0</div>
+                    <div class="stat-label">显示项目</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="updatedItems">0</div>
+                    <div class="stat-label">原文链接更新项目</div>
+                </div>
             </div>
         </div>
         
@@ -589,6 +697,18 @@
             <p>数据来源: 新浪财经直播API | 本页面仅用于展示目的</p>
         </div>
     </footer>
+
+    <div class="floating-actions" aria-label="页面快捷操作">
+        <button class="floating-btn" id="scrollTopBtn" type="button" title="回到顶部" aria-label="回到顶部">
+            <i class="fas fa-arrow-up"></i>
+        </button>
+        <button class="floating-btn" id="historyToggleBtn" type="button" title="暂停滚动加载历史消息" aria-label="暂停滚动加载历史消息" aria-pressed="true">
+            <i class="fas fa-pause"></i>
+        </button>
+        <button class="floating-btn" id="scrollBottomBtn" type="button" title="前往底部" aria-label="前往底部">
+            <i class="fas fa-arrow-down"></i>
+        </button>
+    </div>
     
     <div class="attr-modal" id="attrModal" aria-hidden="true">
         <div class="attr-modal__backdrop" id="attrModalBackdrop"></div>
@@ -631,6 +751,7 @@
         const REQUEST_TIMEOUT = 10000;
         const RETRY_DELAY_MS = 1200;
         const AUTO_REFRESH_INTERVAL_MS = 20000;
+        const HISTORY_VISIBILITY_MARGIN = 220;
         
         function buildApiUrl(page) {
             return `${API_BASE}?${API_DEFAULT_PARAMS}&page=${page}`;
@@ -648,6 +769,7 @@
         let currentPage = 1;
         let isLoadingMore = false;
         let hasMorePages = true;
+        let historyAutoLoadEnabled = true;
         let isRefreshing = false;
         
         // DOM elements
@@ -663,6 +785,9 @@
         const lastUpdateEl = document.getElementById('lastUpdate');
         const visibleItemsEl = document.getElementById('visibleItems');
         const updatedItemsEl = document.getElementById('updatedItems');
+        const scrollTopBtn = document.getElementById('scrollTopBtn');
+        const historyToggleBtn = document.getElementById('historyToggleBtn');
+        const scrollBottomBtn = document.getElementById('scrollBottomBtn');
         const globalLoading = document.getElementById('globalLoading');
         const loadMoreSentinel = document.getElementById('loadMoreSentinel');
         const loadMoreStatus = document.getElementById('loadMoreStatus');
@@ -682,6 +807,7 @@
             }
 
             updateAutoRefreshStatus();
+            updateHistoryToggleButton();
             fetchData();
             setupEventListeners();
             startAutoRefresh();
@@ -707,6 +833,9 @@
             });
             
             refreshBtn.addEventListener('click', fetchData);
+            scrollTopBtn.addEventListener('click', scrollToTop);
+            historyToggleBtn.addEventListener('click', toggleHistoryAutoLoad);
+            scrollBottomBtn.addEventListener('click', scrollToBottom);
         }
         
         function sleep(ms) {
@@ -715,6 +844,57 @@
 
         function updateAutoRefreshStatus() {
             autoRefreshStatus.textContent = `自动刷新已启用 (${Math.round(AUTO_REFRESH_INTERVAL_MS / 1000)}秒)`;
+        }
+
+        function updateHistoryToggleButton() {
+            const iconClass = historyAutoLoadEnabled ? 'fa-pause' : 'fa-play';
+            const label = historyAutoLoadEnabled ? '暂停滚动加载历史消息' : '恢复滚动加载历史消息';
+
+            historyToggleBtn.innerHTML = `<i class="fas ${iconClass}"></i>`;
+            historyToggleBtn.classList.toggle('is-off', !historyAutoLoadEnabled);
+            historyToggleBtn.setAttribute('title', label);
+            historyToggleBtn.setAttribute('aria-label', label);
+            historyToggleBtn.setAttribute('aria-pressed', String(historyAutoLoadEnabled));
+        }
+
+        function toggleHistoryAutoLoad() {
+            historyAutoLoadEnabled = !historyAutoLoadEnabled;
+            updateHistoryToggleButton();
+            updateHistoryStatus();
+
+            if (historyAutoLoadEnabled) {
+                scheduleHistoryLoadCheck();
+            }
+        }
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function scrollToBottom() {
+            window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+
+            if (historyAutoLoadEnabled) {
+                scheduleHistoryLoadCheck();
+            }
+        }
+
+        function isHistoryLoadAreaVisible() {
+            const rect = loadMoreSentinel.getBoundingClientRect();
+            return rect.top <= window.innerHeight + HISTORY_VISIBILITY_MARGIN;
+        }
+
+        function scheduleHistoryLoadCheck() {
+            const delays = [0, 250, 700, 1200];
+
+            delays.forEach(delay => {
+                window.setTimeout(() => {
+                    if (!historyAutoLoadEnabled || isFirstLoad || isLoadingMore || !hasMorePages) return;
+                    if (isHistoryLoadAreaVisible()) {
+                        loadOlderPage();
+                    }
+                }, delay);
+            });
         }
 
         // Fetch JSON with timeout and unlimited retries.
@@ -870,11 +1050,6 @@
         
         // Render content
         function renderContent(items) {
-            if (items.length === 0) {
-                contentList.innerHTML = '<div class="loading">没有找到匹配的内容</div>';
-                return;
-            }
-            
             contentList.innerHTML = items.map(item => createContentItem(item)).join('');
         }
         
@@ -1391,31 +1566,36 @@
             const oldestItem = getOldestLoadedItem();
 
             if (!oldestItem) {
-                return `已加载到第 ${currentPage} 页`;
+                return '';
             }
 
-            return `已加载到第 ${currentPage} 页 / 最旧 ID ${oldestItem.id} / 最旧时间 ${formatTime(oldestItem.create_time)}`;
+            return `最旧 ID ${oldestItem.id} / 最旧时间 ${formatTime(oldestItem.create_time)}`;
         }
 
         function updateHistoryStatus({ loading = false, exhausted = false, error = '' } = {}) {
             const baseText = getHistoryStatusText();
+            const parts = [];
 
             if (error) {
-                loadMoreStatus.textContent = `${baseText} / ${error}`;
-                return;
+                parts.push(error);
+            } else if (loading) {
+                parts.push('正在加载更早消息...');
+            } else if (exhausted) {
+                parts.push('已到接口当前可提供的最旧内容');
+            } else if (!historyAutoLoadEnabled) {
+                parts.push('已暂停下拉加载历史消息');
             }
 
-            if (exhausted) {
-                loadMoreStatus.textContent = `${baseText} / 已到接口当前可提供的最旧内容`;
-                return;
+            if (baseText) {
+                parts.push(baseText);
             }
 
             if (loading) {
-                loadMoreStatus.innerHTML = `${baseText} <i class="fas fa-spinner fa-spin"></i>`;
+                loadMoreStatus.innerHTML = `${parts.join(' / ')} <i class="fas fa-spinner fa-spin"></i>`;
                 return;
             }
 
-            loadMoreStatus.textContent = baseText;
+            loadMoreStatus.textContent = parts.join(' / ');
         }
         
         // Auto-refresh
@@ -1429,7 +1609,7 @@
 
         // Load older pages when scrolling down
         async function loadOlderPage() {
-            if (isFirstLoad || isLoadingMore || !hasMorePages) return;
+            if (isFirstLoad || isLoadingMore || !hasMorePages || !historyAutoLoadEnabled) return;
             
             isLoadingMore = true;
             updateHistoryStatus({ loading: true });
@@ -1462,7 +1642,7 @@
             
             const observer = new IntersectionObserver(entries => {
                 const entry = entries[0];
-                if (entry.isIntersecting) {
+                if (entry.isIntersecting && historyAutoLoadEnabled) {
                     loadOlderPage();
                 }
             }, {
