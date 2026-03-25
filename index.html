@@ -448,6 +448,8 @@
             font-size: 16px;
             margin-bottom: 10px;
             line-height: 1.5;
+            white-space: pre-line;
+            word-break: break-word;
         }
 
         .content-title {
@@ -1943,9 +1945,7 @@
                 ? `<div class="${titleClass}">${displayParts.title}</div>`
                 : '';
             const bodyHtml = displayParts.body
-                ? `<div class="${textClass}">
-                        ${displayParts.body}
-                   </div>`
+                ? `<div class="${textClass}">${displayParts.body}</div>`
                 : '';
             const sourceLabel = displayParts.source ? `来源：${displayParts.source}` : '';
             const sourceTooltip = displayParts.source ? `识别出的来源：${displayParts.source}` : '';
