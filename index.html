@@ -25,6 +25,11 @@
     -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        html {
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -1002,6 +1007,7 @@
                 <div class="filter-box">
                     <select id="typeFilter">
                         <option value="all">全部</option>
+                        <option value="has-comments">评论：有</option>
                         <option value="10">A股</option>
                         <option value="1">宏观</option>
                         <option value="3">公司</option>
@@ -1842,7 +1848,12 @@
         function filterItemsByCriteria(items, searchText, selectedType) {
             return items.filter(item => {
                 const matchesSearch = getSearchableText(item).includes(searchText);
-                const matchesType = selectedType === 'all' || item.tag.some(t => t.id.toString() === selectedType);
+                const commentTotal = Number(item.comment_list?.total) || 0;
+                const returnedCommentCount = Array.isArray(item.comment_list?.list) ? item.comment_list.list.length : 0;
+                const hasComments = commentTotal > 0 || returnedCommentCount > 0;
+                const matchesType = selectedType === 'all'
+                    || (selectedType === 'has-comments' && hasComments)
+                    || item.tag.some(t => t.id.toString() === selectedType);
                 return matchesSearch && matchesType;
             });
         }
