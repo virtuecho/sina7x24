@@ -73,6 +73,8 @@
         }
 
         .sticky-panel {
+            --sticky-panel-max-height: none;
+            --sticky-panel-content-max-height: none;
             position: sticky;
             top: 10px;
             z-index: 900;
@@ -240,6 +242,7 @@
         input[type="date"],
         input[type="number"] {
             padding: 10px 15px;
+            min-height: 46px;
             border: 1px solid #ddd;
             border-radius: 6px;
             background-color: white;
@@ -248,6 +251,7 @@
 
         .developer-panel input[type="text"] {
             padding: 10px 15px;
+            min-height: 46px;
             border: 1px solid #ddd;
             border-radius: 6px;
             background-color: white;
@@ -259,11 +263,17 @@
             color: white;
             border: none;
             padding: 10px 15px;
+            min-height: 46px;
             border-radius: 6px;
             cursor: pointer;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.2;
+            white-space: nowrap;
             transition: background-color 0.3s;
         }
         
@@ -876,22 +886,49 @@
             .sticky-panel {
                 top: 8px;
                 padding: 12px;
+                max-height: var(--sticky-panel-max-height, calc(100dvh - 16px));
             }
 
             .controls {
                 flex-direction: column;
             }
 
-            .developer-panel__row,
-            .developer-panel__input-row {
+            .developer-panel__row {
                 flex-direction: column;
                 align-items: stretch;
+            }
+
+            .developer-panel__input-row {
+                flex-direction: row;
+                align-items: stretch;
+                flex-wrap: nowrap;
+            }
+
+            .developer-panel__input-row input[type="number"] {
+                flex: 0 0 110px;
+                width: 110px;
+                min-width: 0;
+            }
+
+            .developer-panel__input-row .refresh-btn {
+                flex: 1 1 auto;
+                min-width: 0;
             }
             
             .search-box {
                 max-width: 100%;
             }
-            
+
+            .sticky-panel__content {
+                min-height: 0;
+                max-height: var(--sticky-panel-content-max-height, calc(100dvh - 120px));
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
+                touch-action: pan-y;
+                padding-right: 2px;
+            }
+
             .stats {
                 flex-direction: column;
                 gap: 15px;
@@ -1266,6 +1303,7 @@
             updateDeveloperModeButton();
             updateDeveloperPanelVisibility();
             updateIdOrderStatus();
+            updateStickyPanelState();
         }
 
         function updateTitleModeButton() {
@@ -1399,6 +1437,27 @@
                 || panelOccupiesTooMuchHeight;
         }
 
+        function updateStickyPanelScrollableLayout() {
+            const isCompactViewport = shouldUseCompactStickyPanel();
+
+            if (!isCompactViewport) {
+                stickyPanel.style.removeProperty('--sticky-panel-max-height');
+                stickyPanel.style.removeProperty('--sticky-panel-content-max-height');
+                return;
+            }
+
+            const viewportHeight = window.visualViewport?.height || window.innerHeight;
+            const panelRect = stickyPanel.getBoundingClientRect();
+            const panelTop = Math.max(panelRect.top, 8);
+            const availableHeight = Math.max(240, Math.floor(viewportHeight - panelTop - 8));
+            const toggleSpacing = stickyPanelToggleBtn.hidden ? 0 : stickyPanelToggleBtn.offsetHeight + 10;
+            const panelPaddingAllowance = stickyPanel.classList.contains('is-compact') ? 20 : 30;
+            const contentHeight = Math.max(150, availableHeight - toggleSpacing - panelPaddingAllowance);
+
+            stickyPanel.style.setProperty('--sticky-panel-max-height', `${availableHeight}px`);
+            stickyPanel.style.setProperty('--sticky-panel-content-max-height', `${contentHeight}px`);
+        }
+
         function updateStickyPanelToggleButton() {
             const isCompact = stickyPanel.classList.contains('is-compact');
             const isVisible = isCompact || stickyPanel.classList.contains('is-mobile-expanded');
@@ -1443,6 +1502,7 @@
             stickyPanel.classList.toggle('is-mobile-expanded', isMobileExpanded);
             stickyPanelContent.setAttribute('aria-hidden', String(isCompact));
             updateStickyPanelToggleButton();
+            updateStickyPanelScrollableLayout();
         }
 
         function toggleStickyPanel() {
