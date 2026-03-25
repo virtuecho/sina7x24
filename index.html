@@ -498,6 +498,7 @@
         .content-actions {
             display: flex;
             gap: 15px;
+            flex-wrap: wrap;
         }
         
         .action-btn {
@@ -527,6 +528,21 @@
 
         .attr-btn {
             background-color: #f1f5f9;
+        }
+
+        .source-btn {
+            cursor: default;
+            color: #4a69bd;
+            background-color: #eaf0ff;
+            max-width: 220px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .source-btn:hover {
+            color: #4a69bd;
+            background-color: #eaf0ff;
         }
         
         .action-btn.disabled {
@@ -643,6 +659,105 @@
             font-size: 12px;
             white-space: pre-wrap;
             word-break: break-word;
+        }
+
+        .comments-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            align-items: center;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .comments-summary__item {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .comments-summary__label {
+            color: #64748b;
+        }
+
+        .comments-summary__value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .comments-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .comment-card {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #ffffff;
+        }
+
+        .comment-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #e2e8f0;
+            flex-shrink: 0;
+        }
+
+        .comment-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .comment-author {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .comment-author__name {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .comment-author__uid {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .comment-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .comment-content {
+            font-size: 14px;
+            line-height: 1.7;
+            color: #334155;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .comment-empty {
+            padding: 18px;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            color: #64748b;
+            font-size: 13px;
         }
         
         .loading {
@@ -873,6 +988,7 @@
             <div class="developer-panel" id="developerPanel" hidden>
                 <div class="developer-panel__row">
                     <button class="refresh-btn toggle-btn is-active" id="titleModeBtn" type="button" title="将【标题】单独提取显示" aria-label="将【标题】单独提取显示">标题单显：开</button>
+                    <button class="refresh-btn toggle-btn is-active" id="sourceModeBtn" type="button" title="将末尾来源单独提取显示" aria-label="将末尾来源单独提取显示">来源单显：开</button>
                     <div class="developer-panel__field">
                         <label class="developer-panel__label" for="refreshSecondsInput">自动刷新秒数</label>
                         <div class="developer-panel__input-row">
@@ -960,6 +1076,26 @@
         </div>
     </div>
 
+    <div class="attr-modal" id="commentsModal" aria-hidden="true">
+        <div class="attr-modal__backdrop" id="commentsModalBackdrop"></div>
+        <div class="attr-modal__content" role="dialog" aria-modal="true" aria-labelledby="commentsModalTitle">
+            <div class="attr-modal__header">
+                <h3 id="commentsModalTitle">评论</h3>
+                <button class="attr-modal__close" id="commentsModalClose" aria-label="Close">×</button>
+            </div>
+            <div class="attr-modal__body">
+                <div class="attr-section">
+                    <div class="attr-section__title">评论概览</div>
+                    <div class="comments-summary" id="commentsSummary"></div>
+                </div>
+                <div class="attr-section">
+                    <div class="attr-section__title">接口返回的评论列表</div>
+                    <div class="comments-list" id="commentsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // API endpoint
         // Use the local same-origin proxy instead of public CORS relay services.
@@ -994,6 +1130,7 @@
         let hasMorePages = true;
         let historyAutoLoadEnabled = true;
         let showStandaloneTitle = true;
+        let showStandaloneSource = true;
         let developerModeEnabled = false;
         let itemLimitEnabled = false;
         let latestRefreshPaused = false;
@@ -1013,6 +1150,7 @@
         const developerModeBtn = document.getElementById('developerModeBtn');
         const developerPanel = document.getElementById('developerPanel');
         const titleModeBtn = document.getElementById('titleModeBtn');
+        const sourceModeBtn = document.getElementById('sourceModeBtn');
         const refreshSecondsInput = document.getElementById('refreshSecondsInput');
         const applyRefreshSecondsBtn = document.getElementById('applyRefreshSecondsBtn');
         const pauseLatestRefreshBtn = document.getElementById('pauseLatestRefreshBtn');
@@ -1037,6 +1175,11 @@
         const attrRaw = document.getElementById('attrRaw');
         const attrExt = document.getElementById('attrExt');
         const attrExtSection = document.getElementById('attrExtSection');
+        const commentsModal = document.getElementById('commentsModal');
+        const commentsModalBackdrop = document.getElementById('commentsModalBackdrop');
+        const commentsModalClose = document.getElementById('commentsModalClose');
+        const commentsSummary = document.getElementById('commentsSummary');
+        const commentsList = document.getElementById('commentsList');
         
         // Initialization
         document.addEventListener('DOMContentLoaded', function() {
@@ -1050,6 +1193,7 @@
             updateDeveloperModeButton();
             updateDeveloperPanelVisibility();
             updateTitleModeButton();
+            updateSourceModeButton();
             updateLatestRefreshButton();
             updateItemLimitButton();
             fetchData();
@@ -1075,6 +1219,7 @@
             refreshBtn.addEventListener('click', fetchData);
             developerModeBtn.addEventListener('click', toggleDeveloperMode);
             titleModeBtn.addEventListener('click', toggleTitleMode);
+            sourceModeBtn.addEventListener('click', toggleSourceMode);
             applyRefreshSecondsBtn.addEventListener('click', applyAutoRefreshInterval);
             refreshSecondsInput.addEventListener('keydown', handleRefreshSecondsInputKeydown);
             pauseLatestRefreshBtn.addEventListener('click', toggleLatestRefreshPaused);
@@ -1138,6 +1283,24 @@
         function toggleTitleMode() {
             showStandaloneTitle = !showStandaloneTitle;
             updateTitleModeButton();
+            filterContent();
+        }
+
+        function updateSourceModeButton() {
+            const label = showStandaloneSource ? '来源单显：开' : '来源单显：关';
+            const tooltip = showStandaloneSource
+                ? '已开启来源单独显示；点击后恢复为正文内显示'
+                : '已关闭来源单独显示；点击后提取末尾来源并单独显示';
+
+            sourceModeBtn.textContent = label;
+            sourceModeBtn.classList.toggle('is-active', showStandaloneSource);
+            sourceModeBtn.setAttribute('title', tooltip);
+            sourceModeBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function toggleSourceMode() {
+            showStandaloneSource = !showStandaloneSource;
+            updateSourceModeButton();
             filterContent();
         }
 
@@ -1674,6 +1837,17 @@
             div.innerHTML = htmlString.trim();
             return div.firstChild;
         }
+
+        const DEFAULT_COMMENT_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%23e2e8f0"/><circle cx="22" cy="17" r="8" fill="%2394a3b8"/><path d="M9 37c2.8-7 9.4-10 13-10s10.2 3 13 10" fill="%2394a3b8"/></svg>';
+
+        function escapeHtml(text) {
+            return String(text ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
         
         // Create a single content item
         function createContentItem(item) {
@@ -1702,6 +1876,17 @@
                         ${displayParts.body}
                    </div>`
                 : '';
+            const sourceLabel = displayParts.source ? `来源：${displayParts.source}` : '';
+            const sourceTooltip = displayParts.source ? `识别出的来源：${displayParts.source}` : '';
+            const sourceHtml = displayParts.source
+                ? `<span class="action-btn source-btn" title="${escapeHtml(sourceTooltip)}" aria-label="${escapeHtml(sourceTooltip)}">${escapeHtml(sourceLabel)}</span>`
+                : '';
+            const loadedCommentCount = Array.isArray(item.comment_list?.list) ? item.comment_list.list.length : 0;
+            const commentsHtml = loadedCommentCount > 0
+                ? `<button class="action-btn comment-btn" data-action="comments" title="查看评论信息" aria-label="查看评论信息">
+                                <i class="fas fa-comments"></i> 评论
+                            </button>`
+                : '';
             
             return `
                 <div class="content-item" data-id="${item.id}">
@@ -1720,6 +1905,8 @@
                             <button class="action-btn copy-btn" data-action="copy" title="复制这条新闻原文" aria-label="复制这条新闻原文">
                                 <i class="fas fa-copy"></i> 复制
                             </button>
+                            ${sourceHtml}
+                            ${commentsHtml}
                             <button class="action-btn attr-btn" data-action="attrs">全部属性</button>
                             <button class="${buttonClass}" ${onClick ? `onclick="${onClick}"` : ''}>
                                 <i class="fas fa-external-link-alt"></i> 原文
@@ -2019,6 +2206,7 @@
         }
 
         function openAttributeModal(item) {
+            closeCommentsModal();
             const displayItem = buildDisplayItem(item);
             const entries = [];
             flattenObject(displayItem, '', entries);
@@ -2043,6 +2231,129 @@
             attrModal.setAttribute('aria-hidden', 'true');
         }
 
+        function renderCommentsSummary(item) {
+            const summary = item.comment_list || {};
+            const summaryItems = [
+                { label: '评论总数', value: Number(summary.total) || 0 },
+                { label: '接口返回条数', value: Array.isArray(summary.list) ? summary.list.length : 0 }
+            ];
+
+            commentsSummary.textContent = '';
+            const fragment = document.createDocumentFragment();
+
+            summaryItems.forEach(({ label, value }) => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'comments-summary__item';
+
+                const labelEl = document.createElement('div');
+                labelEl.className = 'comments-summary__label';
+                labelEl.textContent = label;
+
+                const valueEl = document.createElement('div');
+                valueEl.className = 'comments-summary__value';
+                valueEl.textContent = String(value);
+
+                itemEl.appendChild(labelEl);
+                itemEl.appendChild(valueEl);
+                fragment.appendChild(itemEl);
+            });
+
+            commentsSummary.appendChild(fragment);
+        }
+
+        function renderCommentsList(item) {
+            const comments = Array.isArray(item.comment_list?.list) ? item.comment_list.list : [];
+            commentsList.textContent = '';
+
+            if (comments.length === 0) {
+                const emptyEl = document.createElement('div');
+                emptyEl.className = 'comment-empty';
+                emptyEl.textContent = '这条新闻当前没有随接口返回可展示的评论列表。';
+                commentsList.appendChild(emptyEl);
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+
+            comments.forEach(comment => {
+                const card = document.createElement('div');
+                card.className = 'comment-card';
+
+                const avatar = document.createElement('img');
+                avatar.className = 'comment-avatar';
+                avatar.src = comment.profile_img || DEFAULT_COMMENT_AVATAR;
+                avatar.alt = comment.nick || '用户头像';
+                avatar.referrerPolicy = 'no-referrer';
+                avatar.onerror = () => {
+                    avatar.onerror = null;
+                    avatar.src = DEFAULT_COMMENT_AVATAR;
+                };
+
+                const main = document.createElement('div');
+                main.className = 'comment-main';
+
+                const author = document.createElement('div');
+                author.className = 'comment-author';
+
+                const name = document.createElement('span');
+                name.className = 'comment-author__name';
+                name.textContent = comment.nick || '匿名用户';
+
+                const uid = document.createElement('span');
+                uid.className = 'comment-author__uid';
+                uid.textContent = `UID: ${comment.uid || '-'}`;
+
+                author.appendChild(name);
+                author.appendChild(uid);
+
+                const meta = document.createElement('div');
+                meta.className = 'comment-meta';
+
+                const metaParts = [
+                    comment.area ? `地区：${comment.area}` : '',
+                    comment.time ? `时间：${comment.time}` : '',
+                    comment.usertype ? `类型：${comment.usertype}` : '',
+                    comment.agree ? `赞同：${comment.agree}` : '',
+                    comment.rank ? `排序：${comment.rank}` : ''
+                ].filter(Boolean);
+
+                metaParts.forEach(part => {
+                    const metaItem = document.createElement('span');
+                    metaItem.textContent = part;
+                    meta.appendChild(metaItem);
+                });
+
+                const content = document.createElement('div');
+                content.className = 'comment-content';
+                content.textContent = comment.content || '';
+
+                main.appendChild(author);
+                if (metaParts.length > 0) {
+                    main.appendChild(meta);
+                }
+                main.appendChild(content);
+
+                card.appendChild(avatar);
+                card.appendChild(main);
+                fragment.appendChild(card);
+            });
+
+            commentsList.appendChild(fragment);
+        }
+
+        function openCommentsModal(item) {
+            closeAttributeModal();
+            renderCommentsSummary(item);
+            renderCommentsList(item);
+            commentsModal.classList.add('is-open');
+            commentsModal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeCommentsModal() {
+            commentsModal.classList.remove('is-open');
+            commentsModal.setAttribute('aria-hidden', 'true');
+        }
+
         function setupAttributeModal() {
             document.addEventListener('click', function(event) {
                 const copyBtn = event.target.closest('[data-action="copy"]');
@@ -2054,6 +2365,17 @@
                         if (item) {
                             copyNewsItem(item, copyBtn);
                         }
+                    }
+                    return;
+                }
+
+                const commentsBtn = event.target.closest('[data-action="comments"]');
+                if (commentsBtn) {
+                    const itemEl = commentsBtn.closest('.content-item');
+                    if (itemEl) {
+                        const itemId = Number(itemEl.dataset.id);
+                        const item = itemsById.get(itemId);
+                        if (item) openCommentsModal(item);
                     }
                     return;
                 }
@@ -2071,12 +2393,22 @@
 
                 if (event.target === attrModalBackdrop || event.target === attrModalClose) {
                     closeAttributeModal();
+                    return;
+                }
+
+                if (event.target === commentsModalBackdrop || event.target === commentsModalClose) {
+                    closeCommentsModal();
                 }
             });
 
             document.addEventListener('keydown', function(event) {
                 if (event.key === 'Escape' && attrModal.classList.contains('is-open')) {
                     closeAttributeModal();
+                    return;
+                }
+
+                if (event.key === 'Escape' && commentsModal.classList.contains('is-open')) {
+                    closeCommentsModal();
                 }
             });
         }
@@ -2216,26 +2548,56 @@
             };
         }
 
-        function getDisplayTextParts(text) {
-            if (!showStandaloneTitle) {
-                return {
-                    title: '',
-                    body: typeof text === 'string' ? text : ''
-                };
+        function extractTrailingSource(text) {
+            if (typeof text !== 'string') {
+                return { body: '', source: '' };
             }
 
-            const parts = extractHeadlineParts(text);
+            const trimmedText = text.trim();
+            if (!trimmedText.endsWith('）') && !trimmedText.endsWith(')')) {
+                return { body: trimmedText, source: '' };
+            }
 
-            if (!parts.title) {
-                return {
-                    title: '',
-                    body: typeof text === 'string' ? text : ''
-                };
+            const match = trimmedText.match(/^([\s\S]*?)(?:\s*[（(]([^（）()\n]{1,24})[）)])$/u);
+            if (!match) {
+                return { body: trimmedText, source: '' };
+            }
+
+            const source = match[2].trim();
+            if (!source || /[，。；：！？“”"'《》<>]/u.test(source)) {
+                return { body: trimmedText, source: '' };
             }
 
             return {
-                title: parts.title,
-                body: parts.body
+                body: match[1].trim(),
+                source
+            };
+        }
+
+        function getDisplayTextParts(text) {
+            const originalText = typeof text === 'string' ? text : '';
+            let title = '';
+            let body = originalText;
+            let source = '';
+
+            if (showStandaloneTitle) {
+                const headlineParts = extractHeadlineParts(originalText);
+                if (headlineParts.title) {
+                    title = headlineParts.title;
+                    body = headlineParts.body;
+                }
+            }
+
+            if (showStandaloneSource) {
+                const sourceParts = extractTrailingSource(body);
+                body = sourceParts.body;
+                source = sourceParts.source;
+            }
+
+            return {
+                title,
+                body,
+                source
             };
         }
 
