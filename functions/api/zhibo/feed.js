@@ -1,19 +1,10 @@
-const SINA_API_URL = 'https://zhibo.sina.com.cn/api/zhibo/feed';
+import { jsonResponse } from '../../_shared/http.js';
+import { buildSinaFeedTargetUrl } from '../../_shared/sina.js';
+
 const API_TIMEOUT_MS = 10000;
 
-function buildTargetUrl(requestUrl) {
-  const incomingUrl = new URL(requestUrl);
-  const targetUrl = new URL(SINA_API_URL);
-
-  incomingUrl.searchParams.forEach((value, key) => {
-    targetUrl.searchParams.set(key, value);
-  });
-
-  return targetUrl;
-}
-
 export async function onRequestGet(context) {
-  const targetUrl = buildTargetUrl(context.request.url);
+  const targetUrl = buildSinaFeedTargetUrl(context.request.url);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
@@ -40,18 +31,13 @@ export async function onRequestGet(context) {
   } catch (error) {
     const isTimeout = error && error.name === 'AbortError';
 
-    return Response.json(
+    return jsonResponse(
       {
         error: isTimeout ? 'proxy_timeout' : 'proxy_error',
         message: isTimeout ? '请求新浪接口超时' : '请求新浪接口失败',
         details: error instanceof Error ? error.message : String(error)
       },
-      {
-        status: isTimeout ? 504 : 502,
-        headers: {
-          'cache-control': 'no-store'
-        }
-      }
+      isTimeout ? 504 : 502
     );
   } finally {
     clearTimeout(timeoutId);
