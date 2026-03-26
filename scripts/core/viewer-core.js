@@ -776,8 +776,13 @@ export function createViewerCore() {
                 const commentTotal = Number(item.comment_list?.total) || 0;
                 const returnedCommentCount = Array.isArray(item.comment_list?.list) ? item.comment_list.list.length : 0;
                 const hasComments = commentTotal > 0 || returnedCommentCount > 0;
+                const originalText = typeof item.rich_text === 'string' ? item.rich_text : '';
+                const headlineParts = extractHeadlineParts(originalText);
+                const sourceParts = extractTrailingSource(headlineParts.body || originalText);
+                const hasSource = Boolean(sourceParts.source);
                 const matchesType = selectedType === 'all'
                     || (selectedType === 'has-comments' && hasComments)
+                    || (selectedType === 'has-source' && hasSource)
                     || item.tag.some(t => t.id.toString() === selectedType);
                 return matchesSearch && matchesType;
             });
