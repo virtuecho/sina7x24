@@ -1559,13 +1559,13 @@ export function createViewerCore() {
                 return { body: trimmedText, source: '' };
             }
 
-            const match = trimmedText.match(/^([\s\S]*?)(?:\s*[（(]([^（）()\n]{1,24})[）)])$/u);
+            const match = trimmedText.match(/^([\s\S]*?)(?:\s*[（(]([^\n]{1,24})[）)])$/u);
             if (!match) {
                 return { body: trimmedText, source: '' };
             }
 
             const source = match[2].trim();
-            if (!source || /[，。；：！？“”"'《》<>]/u.test(source)) {
+            if (!source) {
                 return { body: trimmedText, source: '' };
             }
 
