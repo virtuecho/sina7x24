@@ -852,9 +852,9 @@ export function createViewerCore() {
         
         // Create a single content item
         function createContentItem(item) {
-            const hasDocUrl = item.docurl && item.docurl.trim() !== '';
+            const docUrl = getDocUrl(item);
+            const hasDocUrl = Boolean(docUrl);
             const buttonClass = hasDocUrl ? 'action-btn' : 'action-btn disabled';
-            const onClick = hasDocUrl ? `openDocUrl('${getDocUrl(item)}')` : '';
             
             // Check whether to highlight (ID is 9)
             const isHighlight = item.tag.some(t => t.id == 9);
@@ -907,7 +907,7 @@ export function createViewerCore() {
                             ${sourceHtml}
                             ${commentsHtml}
                             <button class="action-btn attr-btn" data-action="attrs">全部属性</button>
-                            <button class="${buttonClass}" ${onClick ? `onclick="${onClick}"` : ''}>
+                            <button class="${buttonClass}" ${hasDocUrl ? 'data-action="open-doc"' : ''} type="button">
                                 <i class="fas fa-external-link-alt"></i> 原文
                             </button>
                         </div>
@@ -1382,6 +1382,17 @@ export function createViewerCore() {
                         const itemId = Number(itemEl.dataset.id);
                         const item = itemsById.get(itemId);
                         if (item) openCommentsModal(item);
+                    }
+                    return;
+                }
+
+                const openDocBtn = event.target.closest('[data-action="open-doc"]');
+                if (openDocBtn) {
+                    const itemEl = openDocBtn.closest('.content-item');
+                    if (itemEl) {
+                        const itemId = Number(itemEl.dataset.id);
+                        const item = itemsById.get(itemId);
+                        if (item) openDocUrl(getDocUrl(item));
                     }
                     return;
                 }
