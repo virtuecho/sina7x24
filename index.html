@@ -262,6 +262,18 @@
             background-color: white;
             font-size: 14px;
         }
+
+        .developer-panel textarea {
+            width: 100%;
+            padding: 10px 15px;
+            min-height: 108px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: white;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+        }
         
         .refresh-btn {
             background-color: #4a69bd;
@@ -368,6 +380,73 @@
 
         .developer-panel__status.is-ok {
             color: #1f5f46;
+        }
+
+        .developer-panel__section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(116, 144, 196, 0.2);
+        }
+
+        .developer-panel__section-title {
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .developer-panel__section-toggle {
+            justify-content: space-between;
+        }
+
+        .discord-debug-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 12px;
+            align-items: end;
+        }
+
+        .developer-panel__field--wide {
+            grid-column: 1 / -1;
+        }
+
+        .discord-webhook-url-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .discord-webhook-url-row input {
+            flex: 1;
+            min-width: 0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+        }
+
+        .discord-webhook-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .discord-webhook-status {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #5b6b82;
+        }
+
+        .discord-webhook-status.is-success {
+            color: #1f5f46;
+        }
+
+        .discord-webhook-status.is-warning {
+            color: #92400e;
+        }
+
+        .discord-webhook-status.is-error {
+            color: #b91c1c;
         }
         
         .refreshing {
@@ -921,6 +1000,20 @@
                 flex: 1 1 auto;
                 min-width: 0;
             }
+
+            .discord-debug-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .discord-webhook-url-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .discord-webhook-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
             
             .search-box {
                 max-width: 100%;
@@ -1045,6 +1138,10 @@
                 </div>
                 <div class="developer-panel__hint">低于60秒可能触发接口限频，默认建议保持 60 秒。</div>
                 <div class="developer-panel__status" id="idOrderStatus">ID顺序检测：未检测</div>
+                <div class="developer-panel__section">
+                    <button class="refresh-btn toggle-btn developer-panel__section-toggle" id="discordDebugOpenBtn" type="button" title="打开 Discord 调试窗口" aria-label="打开 Discord 调试窗口">Discord 调试窗口 <i class="fas fa-up-right-from-square"></i></button>
+                    <div class="developer-panel__hint" id="discordRelaySummary">Discord 自动转发：未启用</div>
+                </div>
             </div>
 
             <div class="stats">
@@ -1141,6 +1238,47 @@
         </div>
     </div>
 
+    <div class="attr-modal" id="discordDebugModal" aria-hidden="true">
+        <div class="attr-modal__backdrop" id="discordDebugModalBackdrop"></div>
+        <div class="attr-modal__content" role="dialog" aria-modal="true" aria-labelledby="discordDebugModalTitle">
+            <div class="attr-modal__header">
+                <h3 id="discordDebugModalTitle">Discord 调试</h3>
+                <button class="attr-modal__close" id="discordDebugModalClose" aria-label="Close">×</button>
+            </div>
+            <div class="attr-modal__body">
+                <div class="attr-section">
+                    <div class="developer-panel__hint">手动填入有效 Webhook URL 后，会自动开始转发最新消息；如果这条消息后续被接口更新，系统也会尝试同步编辑已发送消息。Webhook 地址只保留在当前页面内存里。</div>
+                </div>
+                <div class="attr-section">
+                    <div class="discord-debug-grid">
+                        <div class="developer-panel__field developer-panel__field--wide">
+                            <label class="developer-panel__label" for="discordWebhookUrlInput">Discord Webhook URL</label>
+                            <div class="discord-webhook-url-row">
+                                <input type="password" id="discordWebhookUrlInput" placeholder="https://discord.com/api/webhooks/..." autocomplete="off" spellcheck="false" aria-label="Discord Webhook URL">
+                                <button class="refresh-btn toggle-btn" id="discordWebhookVisibilityBtn" type="button" title="显示 Discord Webhook 地址" aria-label="显示 Discord Webhook 地址">显示</button>
+                                <button class="refresh-btn toggle-btn" id="discordWebhookClearBtn" type="button" title="清除 Discord Webhook URL 并立即停止自动转发" aria-label="清除 Discord Webhook URL 并立即停止自动转发">清除</button>
+                            </div>
+                        </div>
+                        <div class="developer-panel__field">
+                            <label class="developer-panel__label" for="discordWebhookUsernameInput">Webhook 用户名（新消息可选）</label>
+                            <input type="text" id="discordWebhookUsernameInput" maxlength="80" placeholder="例如：Sina 7x24 Relay" aria-label="Discord Webhook 用户名">
+                        </div>
+                        <div class="developer-panel__field developer-panel__field--wide">
+                            <label class="developer-panel__label" for="discordWebhookContentInput">测试消息</label>
+                            <textarea id="discordWebhookContentInput" rows="4" placeholder="输入要发送到 Discord 的测试文本，或使用下方按钮填入当前筛选首条。" aria-label="Discord Webhook 测试消息"></textarea>
+                        </div>
+                        <div class="discord-webhook-actions">
+                            <button class="refresh-btn" id="discordWebhookFillBtn" type="button" title="把当前筛选后的首条新闻填入测试消息" aria-label="把当前筛选后的首条新闻填入测试消息">填入当前首条</button>
+                            <button class="refresh-btn" id="discordWebhookSendBtn" type="button" title="立即测试发送一条 Discord 消息" aria-label="立即测试发送一条 Discord 消息">立即测试发送</button>
+                            <button class="refresh-btn toggle-btn" id="discordWebhookSendBulkBtn" type="button" title="按时间顺序发送当前已加载的 100 条消息" aria-label="按时间顺序发送当前已加载的 100 条消息">发送100条消息</button>
+                        </div>
+                    </div>
+                    <div class="discord-webhook-status" id="discordWebhookStatus">Discord 调试：未发送</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // API endpoint
         // Use the local same-origin proxy instead of public CORS relay services.
@@ -1182,6 +1320,16 @@
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
+        let discordWebhookSending = false;
+        let discordWebhookVisible = false;
+        let discordAutoRelayEnabled = false;
+        let activeDiscordWebhookUrl = '';
+        let discordRelayQueue = Promise.resolve();
+        let discordRelayedMessages = new Map();
+        let discordBulkConfirmPending = false;
+        let discordBulkConfirmTimer = null;
+        let discordRequestControllers = new Set();
+        let discordAbortReason = '';
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         
         // DOM elements
@@ -1200,6 +1348,17 @@
         const applyRefreshSecondsBtn = document.getElementById('applyRefreshSecondsBtn');
         const pauseLatestRefreshBtn = document.getElementById('pauseLatestRefreshBtn');
         const idOrderStatus = document.getElementById('idOrderStatus');
+        const discordDebugOpenBtn = document.getElementById('discordDebugOpenBtn');
+        const discordRelaySummary = document.getElementById('discordRelaySummary');
+        const discordWebhookUrlInput = document.getElementById('discordWebhookUrlInput');
+        const discordWebhookVisibilityBtn = document.getElementById('discordWebhookVisibilityBtn');
+        const discordWebhookClearBtn = document.getElementById('discordWebhookClearBtn');
+        const discordWebhookUsernameInput = document.getElementById('discordWebhookUsernameInput');
+        const discordWebhookContentInput = document.getElementById('discordWebhookContentInput');
+        const discordWebhookFillBtn = document.getElementById('discordWebhookFillBtn');
+        const discordWebhookSendBtn = document.getElementById('discordWebhookSendBtn');
+        const discordWebhookSendBulkBtn = document.getElementById('discordWebhookSendBulkBtn');
+        const discordWebhookStatus = document.getElementById('discordWebhookStatus');
         const itemLimitBtn = document.getElementById('itemLimitBtn');
         const refreshIcon = document.getElementById('refreshIcon');
         const errorMessage = document.getElementById('errorMessage');
@@ -1225,6 +1384,9 @@
         const commentsModalClose = document.getElementById('commentsModalClose');
         const commentsSummary = document.getElementById('commentsSummary');
         const commentsList = document.getElementById('commentsList');
+        const discordDebugModal = document.getElementById('discordDebugModal');
+        const discordDebugModalBackdrop = document.getElementById('discordDebugModalBackdrop');
+        const discordDebugModalClose = document.getElementById('discordDebugModalClose');
         
         // Initialization
         document.addEventListener('DOMContentLoaded', function() {
@@ -1241,6 +1403,10 @@
             updateSourceModeButton();
             updateLatestRefreshButton();
             updateItemLimitButton();
+            updateDiscordRelaySummary();
+            updateDiscordWebhookVisibilityButton();
+            updateDiscordWebhookSendButton();
+            updateDiscordWebhookBulkButton();
             fetchData();
             setupEventListeners();
             startAutoRefresh();
@@ -1269,6 +1435,14 @@
             refreshSecondsInput.addEventListener('keydown', handleRefreshSecondsInputKeydown);
             pauseLatestRefreshBtn.addEventListener('click', toggleLatestRefreshPaused);
             itemLimitBtn.addEventListener('click', toggleItemLimit);
+            discordDebugOpenBtn.addEventListener('click', openDiscordDebugModal);
+            discordWebhookUrlInput.addEventListener('input', handleDiscordWebhookUrlInput);
+            discordWebhookUrlInput.addEventListener('keydown', handleDiscordWebhookUrlInputKeydown);
+            discordWebhookVisibilityBtn.addEventListener('click', toggleDiscordWebhookVisibility);
+            discordWebhookClearBtn.addEventListener('click', clearDiscordWebhookUrl);
+            discordWebhookFillBtn.addEventListener('click', fillDiscordWebhookContentFromCurrentItem);
+            discordWebhookSendBtn.addEventListener('click', sendDiscordWebhookDebugMessage);
+            discordWebhookSendBulkBtn.addEventListener('click', handleDiscordWebhookBulkSendClick);
             stickyPanelToggleBtn.addEventListener('click', toggleStickyPanel);
             scrollTopBtn.addEventListener('click', scrollToTop);
             historyToggleBtn.addEventListener('click', toggleHistoryAutoLoad);
@@ -1312,6 +1486,16 @@
             updateDeveloperPanelVisibility();
             updateIdOrderStatus();
             updateStickyPanelState();
+        }
+
+        function openDiscordDebugModal() {
+            discordDebugModal.classList.add('is-open');
+            discordDebugModal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeDiscordDebugModal() {
+            discordDebugModal.classList.remove('is-open');
+            discordDebugModal.setAttribute('aria-hidden', 'true');
         }
 
         function updateTitleModeButton() {
@@ -1415,6 +1599,583 @@
             refreshBtn.disabled = isDisabled;
             refreshBtn.setAttribute('title', tooltip);
             refreshBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function isValidDiscordWebhookUrl(rawUrl) {
+            if (typeof rawUrl !== 'string' || rawUrl.trim() === '') {
+                return false;
+            }
+
+            try {
+                const parsed = new URL(rawUrl.trim());
+                if (parsed.protocol !== 'https:') {
+                    return false;
+                }
+
+                const isAllowedHost = parsed.hostname === 'discord.com'
+                    || parsed.hostname.endsWith('.discord.com')
+                    || parsed.hostname === 'discordapp.com'
+                    || parsed.hostname.endsWith('.discordapp.com');
+
+                return isAllowedHost && /^\/api\/webhooks\/\d+\/[^/]+\/?$/.test(parsed.pathname);
+            } catch (_error) {
+                return false;
+            }
+        }
+
+        function clearDiscordRelayState() {
+            discordRelayedMessages = new Map();
+            discordRelayQueue = Promise.resolve();
+        }
+
+        function abortAllDiscordRequests(reason = '') {
+            const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+
+            if (!(discordRequestControllers instanceof Set) || discordRequestControllers.size === 0) {
+                discordAbortReason = normalizedReason;
+                return;
+            }
+
+            discordAbortReason = normalizedReason;
+            discordRequestControllers.forEach(controller => controller.abort(normalizedReason || 'Discord 请求已取消'));
+            discordRequestControllers.clear();
+        }
+
+        function updateDiscordRelaySummary() {
+            if (!discordAutoRelayEnabled || !activeDiscordWebhookUrl) {
+                discordRelaySummary.textContent = 'Discord 自动转发：未启用';
+                return;
+            }
+
+            discordRelaySummary.textContent = 'Discord 自动转发：已启用';
+        }
+
+        function activateDiscordAutoRelay(rawUrl, { sendLatestNow = true } = {}) {
+            const trimmedUrl = rawUrl.trim();
+            const hasChanged = trimmedUrl !== activeDiscordWebhookUrl;
+
+            activeDiscordWebhookUrl = trimmedUrl;
+            discordAutoRelayEnabled = true;
+
+            if (hasChanged) {
+                clearDiscordRelayState();
+                setDiscordWebhookStatus('Discord 调试：已启用自动转发，将从当前最新消息开始。', 'is-success');
+                if (sendLatestNow) {
+                    void ensureLatestItemRelayed();
+                }
+            } else {
+                setDiscordWebhookStatus('Discord 调试：自动转发已启用。');
+            }
+
+            updateDiscordRelaySummary();
+        }
+
+        function deactivateDiscordAutoRelay(message = 'Discord 自动转发：未启用', { abortReason = '' } = {}) {
+            activeDiscordWebhookUrl = '';
+            discordAutoRelayEnabled = false;
+            abortAllDiscordRequests(abortReason);
+            clearDiscordRelayState();
+            resetDiscordWebhookBulkButton();
+            updateDiscordRelaySummary();
+            setDiscordWebhookStatus(message);
+        }
+
+        function clearDiscordWebhookUrl() {
+            discordWebhookUrlInput.value = '';
+            deactivateDiscordAutoRelay('Discord 调试：已清除 Webhook URL，并停止自动转发。', {
+                abortReason: '已清除 Webhook URL，当前发送已停止。'
+            });
+            discordWebhookUrlInput.focus();
+        }
+
+        function handleDiscordWebhookUrlInput() {
+            const rawUrl = discordWebhookUrlInput.value.trim();
+
+            if (!rawUrl) {
+                deactivateDiscordAutoRelay('Discord 调试：未配置 Webhook URL。');
+                return;
+            }
+
+            if (!isValidDiscordWebhookUrl(rawUrl)) {
+                activeDiscordWebhookUrl = '';
+                discordAutoRelayEnabled = false;
+                clearDiscordRelayState();
+                updateDiscordRelaySummary();
+                setDiscordWebhookStatus('Discord 调试：Webhook URL 还不是完整有效格式。', 'is-warning');
+                return;
+            }
+
+            activateDiscordAutoRelay(rawUrl);
+        }
+
+        function handleDiscordWebhookUrlInputKeydown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleDiscordWebhookUrlInput();
+            }
+        }
+
+        function updateDiscordWebhookVisibilityButton() {
+            const isVisible = discordWebhookVisible;
+            const label = isVisible ? '隐藏' : '显示';
+            const tooltip = isVisible ? '隐藏 Discord Webhook 地址' : '显示 Discord Webhook 地址';
+
+            discordWebhookUrlInput.type = isVisible ? 'text' : 'password';
+            discordWebhookVisibilityBtn.textContent = label;
+            discordWebhookVisibilityBtn.classList.toggle('is-active', isVisible);
+            discordWebhookVisibilityBtn.setAttribute('title', tooltip);
+            discordWebhookVisibilityBtn.setAttribute('aria-label', tooltip);
+            discordWebhookVisibilityBtn.setAttribute('aria-pressed', String(isVisible));
+        }
+
+        function toggleDiscordWebhookVisibility() {
+            discordWebhookVisible = !discordWebhookVisible;
+            updateDiscordWebhookVisibilityButton();
+        }
+
+        function setDiscordWebhookStatus(message, type = '') {
+            discordWebhookStatus.textContent = message;
+            discordWebhookStatus.classList.remove('is-success', 'is-warning', 'is-error');
+
+            if (type) {
+                discordWebhookStatus.classList.add(type);
+            }
+        }
+
+        function clearDiscordBulkConfirmTimer() {
+            if (discordBulkConfirmTimer) {
+                window.clearTimeout(discordBulkConfirmTimer);
+                discordBulkConfirmTimer = null;
+            }
+        }
+
+        function resetDiscordWebhookBulkButton() {
+            discordBulkConfirmPending = false;
+            clearDiscordBulkConfirmTimer();
+            updateDiscordWebhookBulkButton();
+        }
+
+        function updateDiscordWebhookBulkButton() {
+            const isDisabled = discordWebhookSending;
+            let label = '发送100条消息';
+            let tooltip = '按时间顺序发送当前已加载的 100 条消息';
+
+            if (discordWebhookSending) {
+                label = '批量发送中...';
+                tooltip = '正在按时间顺序批量发送当前消息';
+            } else if (discordBulkConfirmPending) {
+                label = '你确定吗？';
+                tooltip = '再次点击后才会发送当前已加载的 100 条消息';
+            }
+
+            discordWebhookSendBulkBtn.disabled = isDisabled;
+            discordWebhookSendBulkBtn.textContent = label;
+            discordWebhookSendBulkBtn.classList.toggle('is-active', discordBulkConfirmPending);
+            discordWebhookSendBulkBtn.setAttribute('title', tooltip);
+            discordWebhookSendBulkBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function updateDiscordWebhookSendButton() {
+            const isDisabled = discordWebhookSending;
+
+            discordWebhookSendBtn.disabled = isDisabled;
+            discordWebhookFillBtn.disabled = isDisabled;
+            discordWebhookVisibilityBtn.disabled = isDisabled;
+            discordWebhookClearBtn.disabled = false;
+            discordWebhookSendBtn.textContent = isDisabled ? '发送中...' : '立即测试发送';
+            updateDiscordWebhookBulkButton();
+        }
+
+        function truncateText(text, maxLength, suffix = '\n[已截断]') {
+            if (typeof text !== 'string') {
+                return '';
+            }
+
+            if (text.length <= maxLength) {
+                return text;
+            }
+
+            return `${text.slice(0, Math.max(0, maxLength - suffix.length))}${suffix}`;
+        }
+
+        function getCurrentPrimaryItem() {
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            return filteredItems.length > 0 ? filteredItems[0] : null;
+        }
+
+        function formatDiscordEmphasisBlock(text) {
+            if (typeof text !== 'string' || text.trim() === '') {
+                return '';
+            }
+
+            return text
+                .split('\n')
+                .map(line => {
+                    const trimmedLine = line.trim();
+                    return trimmedLine ? `**${trimmedLine}**` : '';
+                })
+                .join('\n');
+        }
+
+        function getDiscordAbortMessage(controller, fallback = 'Discord 请求已取消') {
+            const signalReason = controller?.signal?.reason;
+
+            if (typeof signalReason === 'string' && signalReason.trim()) {
+                return signalReason.trim();
+            }
+
+            if (signalReason instanceof Error && signalReason.message) {
+                return signalReason.message;
+            }
+
+            if (typeof discordAbortReason === 'string' && discordAbortReason.trim()) {
+                return discordAbortReason.trim();
+            }
+
+            return fallback;
+        }
+
+        function isDiscordStoppedMessage(message) {
+            if (typeof message !== 'string') {
+                return false;
+            }
+
+            return message.includes('已停止') || message.includes('已取消') || message.includes('已清除 Webhook URL');
+        }
+
+        function buildDiscordRelayMessage(item) {
+            if (!item) {
+                return '';
+            }
+
+            const tagNames = Array.isArray(item.tag)
+                ? item.tag.map(tag => tag?.name).filter(Boolean).join(' / ')
+                : '';
+            const isFocusItem = Array.isArray(item.tag)
+                && item.tag.some(tag => String(tag?.id) === '9' || String(tag?.name || '').trim() === '焦点');
+            const originalText = typeof item.rich_text === 'string' ? item.rich_text.trim() : '';
+            const headlineParts = extractHeadlineParts(originalText);
+            const sourceParts = extractTrailingSource(headlineParts.body || originalText);
+            const title = headlineParts.title.trim();
+            const body = sourceParts.body.trim();
+            const metadataLine = `-# ID: ${item.id || '-'} 时间: ${formatTime(item.create_time)} 标签: ${tagNames || '无'}`;
+            const dividerLine = '------------------------------';
+            const bodyText = body || (!title && originalText ? originalText : '');
+            const contentLines = [];
+
+            if (title) {
+                contentLines.push(isFocusItem ? `### **${title}**` : `### ${title}`);
+            }
+
+            if (bodyText) {
+                contentLines.push(isFocusItem ? formatDiscordEmphasisBlock(bodyText) : bodyText);
+            }
+
+            contentLines.push(metadataLine);
+
+            return truncateText(`\u200b\n${dividerLine}\n\n${contentLines.join('\n')}`, 2000);
+        }
+
+        function fillDiscordWebhookContentFromCurrentItem() {
+            const item = getCurrentPrimaryItem();
+
+            if (!item) {
+                setDiscordWebhookStatus('Discord 调试：当前没有可填入的新闻。', 'is-warning');
+                return;
+            }
+
+            discordWebhookContentInput.value = buildDiscordRelayMessage(item);
+            setDiscordWebhookStatus(`Discord 调试：已填入当前首条新闻（ID ${item.id}）。`);
+        }
+
+        function getCurrentDiscordBulkItems(limit = 100) {
+            return allItems
+                .slice(0, limit)
+                .slice()
+                .sort((left, right) => Number(left.id) - Number(right.id));
+        }
+
+        async function requestDiscordWebhookDelivery({ webhookUrl, content, username = '', messageId = '' }) {
+            const controller = new AbortController();
+            discordRequestControllers.add(controller);
+
+            try {
+                const response = await fetch('/api/discord-webhook', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        webhookUrl,
+                        content,
+                        username,
+                        messageId
+                    }),
+                    signal: controller.signal
+                });
+
+                const result = await response.json().catch(() => ({}));
+
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || `HTTP ${response.status}`);
+                }
+
+                return result;
+            } catch (error) {
+                if (controller.signal.aborted || error?.name === 'AbortError') {
+                    throw new Error(getDiscordAbortMessage(controller));
+                }
+
+                throw error;
+            } finally {
+                discordRequestControllers.delete(controller);
+
+                if (discordRequestControllers.size === 0) {
+                    discordAbortReason = '';
+                }
+            }
+        }
+
+        function enqueueDiscordRelayTask(task) {
+            discordRelayQueue = discordRelayQueue
+                .catch(() => undefined)
+                .then(task);
+
+            return discordRelayQueue;
+        }
+
+        async function relayItemToDiscord(item, { forceCreate = false } = {}) {
+            if (!discordAutoRelayEnabled || !activeDiscordWebhookUrl || !item) {
+                return;
+            }
+
+            const itemId = Number(item.id);
+            if (!Number.isFinite(itemId)) {
+                return;
+            }
+
+            const nextContent = buildDiscordRelayMessage(item);
+            const existingRecord = discordRelayedMessages.get(itemId);
+
+            if (!forceCreate && existingRecord) {
+                if (existingRecord.content === nextContent) {
+                    return;
+                }
+
+                const result = await requestDiscordWebhookDelivery({
+                    webhookUrl: activeDiscordWebhookUrl,
+                    content: nextContent,
+                    messageId: existingRecord.messageId
+                });
+
+                discordRelayedMessages.set(itemId, {
+                    messageId: result.messageId || existingRecord.messageId,
+                    content: nextContent
+                });
+                updateDiscordRelaySummary();
+                setDiscordWebhookStatus(`Discord 调试：已更新 Discord 消息，新闻 ID ${itemId}。`, 'is-success');
+                return;
+            }
+
+            const result = await requestDiscordWebhookDelivery({
+                webhookUrl: activeDiscordWebhookUrl,
+                content: nextContent,
+                username: discordWebhookUsernameInput.value.trim()
+            });
+
+            if (result.messageId) {
+                discordRelayedMessages.set(itemId, {
+                    messageId: result.messageId,
+                    content: nextContent
+                });
+                updateDiscordRelaySummary();
+            }
+
+            setDiscordWebhookStatus(`Discord 调试：已转发最新消息，新闻 ID ${itemId}。`, 'is-success');
+        }
+
+        async function ensureLatestItemRelayed() {
+            if (!discordAutoRelayEnabled || !activeDiscordWebhookUrl || allItems.length === 0) {
+                return;
+            }
+
+            const latestItem = allItems[0];
+            await enqueueDiscordRelayTask(() => relayItemToDiscord(latestItem));
+        }
+
+        function queueDiscordRelaySync({ addedItems = [], updatedItems = [], mode = 'prepend' } = {}) {
+            if (!discordAutoRelayEnabled || !activeDiscordWebhookUrl || mode !== 'prepend') {
+                return;
+            }
+
+            const addedQueue = [...addedItems]
+                .filter(item => !discordRelayedMessages.has(Number(item.id)))
+                .sort((left, right) => Number(left.id) - Number(right.id));
+
+            const updatedQueue = updatedItems
+                .filter(item => discordRelayedMessages.has(Number(item.id)));
+
+            if (addedQueue.length === 0 && updatedQueue.length === 0) {
+                return;
+            }
+
+            enqueueDiscordRelayTask(async () => {
+                for (const item of addedQueue) {
+                    await relayItemToDiscord(item, { forceCreate: true });
+                }
+
+                for (const item of updatedQueue) {
+                    await relayItemToDiscord(item);
+                }
+            });
+        }
+
+        async function sendDiscordWebhookDebugMessage() {
+            const webhookUrl = discordWebhookUrlInput.value.trim();
+            const content = discordWebhookContentInput.value.trim();
+            const username = discordWebhookUsernameInput.value.trim();
+
+            if (!webhookUrl) {
+                setDiscordWebhookStatus('Discord 调试：请先输入 Discord Webhook URL。', 'is-error');
+                discordWebhookUrlInput.focus();
+                return;
+            }
+
+            if (!content) {
+                setDiscordWebhookStatus('Discord 调试：请先输入测试消息，或点击“填入当前首条”。', 'is-warning');
+                discordWebhookContentInput.focus();
+                return;
+            }
+
+            if (!isValidDiscordWebhookUrl(webhookUrl)) {
+                setDiscordWebhookStatus('Discord 调试：请先输入有效的 Discord Webhook URL。', 'is-error');
+                discordWebhookUrlInput.focus();
+                return;
+            }
+
+            try {
+                discordWebhookSending = true;
+                updateDiscordWebhookSendButton();
+                setDiscordWebhookStatus('Discord 调试：正在通过本地代理发送消息...', 'is-warning');
+
+                const result = await requestDiscordWebhookDelivery({
+                    webhookUrl,
+                    content,
+                    username
+                });
+
+                const messageIdText = result.messageId ? `，消息 ID：${result.messageId}` : '';
+                setDiscordWebhookStatus(`Discord 调试：发送成功${messageIdText}`, 'is-success');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+
+                if (isDiscordStoppedMessage(message)) {
+                    setDiscordWebhookStatus(`Discord 调试：${message}`, 'is-warning');
+                } else {
+                    setDiscordWebhookStatus(`Discord 调试：发送失败，${message}`, 'is-error');
+                }
+            } finally {
+                discordWebhookSending = false;
+                updateDiscordWebhookSendButton();
+            }
+        }
+
+        async function sendCurrentHundredToDiscord() {
+            const webhookUrl = discordWebhookUrlInput.value.trim();
+            const username = discordWebhookUsernameInput.value.trim();
+            const batchItems = getCurrentDiscordBulkItems(100);
+
+            if (!webhookUrl) {
+                setDiscordWebhookStatus('Discord 调试：请先输入 Discord Webhook URL。', 'is-error');
+                discordWebhookUrlInput.focus();
+                return;
+            }
+
+            if (!isValidDiscordWebhookUrl(webhookUrl)) {
+                setDiscordWebhookStatus('Discord 调试：请先输入有效的 Discord Webhook URL。', 'is-error');
+                discordWebhookUrlInput.focus();
+                return;
+            }
+
+            if (batchItems.length === 0) {
+                setDiscordWebhookStatus('Discord 调试：当前没有可批量发送的消息。', 'is-warning');
+                return;
+            }
+
+            activateDiscordAutoRelay(webhookUrl, { sendLatestNow: false });
+
+            try {
+                discordWebhookSending = true;
+                updateDiscordWebhookSendButton();
+                setDiscordWebhookStatus(`Discord 调试：正在按时间顺序发送 ${batchItems.length} 条消息...`, 'is-warning');
+
+                await enqueueDiscordRelayTask(async () => {
+                    let sentCount = 0;
+
+                    for (const item of batchItems) {
+                        if (!discordAutoRelayEnabled || activeDiscordWebhookUrl !== webhookUrl) {
+                            break;
+                        }
+
+                        const existingRecord = discordRelayedMessages.get(Number(item.id));
+                        if (existingRecord) {
+                            continue;
+                        }
+
+                        const result = await requestDiscordWebhookDelivery({
+                            webhookUrl,
+                            content: buildDiscordRelayMessage(item),
+                            username
+                        });
+
+                        if (result.messageId) {
+                            discordRelayedMessages.set(Number(item.id), {
+                                messageId: result.messageId,
+                                content: buildDiscordRelayMessage(item)
+                            });
+                        }
+
+                        sentCount += 1;
+                        setDiscordWebhookStatus(`Discord 调试：批量发送中 ${sentCount}/${batchItems.length}...`, 'is-warning');
+                    }
+                });
+
+                updateDiscordRelaySummary();
+                setDiscordWebhookStatus(`Discord 调试：已完成批量发送，共处理 ${batchItems.length} 条消息。`, 'is-success');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+
+                if (isDiscordStoppedMessage(message)) {
+                    setDiscordWebhookStatus(`Discord 调试：已停止批量发送，${message}`, 'is-warning');
+                } else {
+                    setDiscordWebhookStatus(`Discord 调试：批量发送失败，${message}`, 'is-error');
+                }
+            } finally {
+                discordWebhookSending = false;
+                resetDiscordWebhookBulkButton();
+                updateDiscordWebhookSendButton();
+            }
+        }
+
+        function handleDiscordWebhookBulkSendClick() {
+            if (discordWebhookSending) {
+                return;
+            }
+
+            if (!discordBulkConfirmPending) {
+                discordBulkConfirmPending = true;
+                updateDiscordWebhookBulkButton();
+                setDiscordWebhookStatus('Discord 调试：再次点击“你确定吗？”后，才会发送当前已加载的 100 条消息。', 'is-warning');
+                clearDiscordBulkConfirmTimer();
+                discordBulkConfirmTimer = window.setTimeout(() => {
+                    resetDiscordWebhookBulkButton();
+                }, 6000);
+                return;
+            }
+
+            void sendCurrentHundredToDiscord();
         }
 
         function updateItemLimitButton() {
@@ -1657,6 +2418,7 @@
         // Process data
         function processData(data, { page, mode }) {
             if (data.result && data.result.status.code === 0) {
+                const wasFirstLoad = isFirstLoad;
                 const newItems = Array.isArray(data.result.data.feed.list)
                     ? data.result.data.feed.list
                     : [];
@@ -1694,6 +2456,10 @@
                 if (isFirstLoad || trimmedCount > 0 || (orderDisorderDetected && addedItems.length > 0)) {
                     filterContent();
                     isFirstLoad = false;
+
+                    if (wasFirstLoad && mode === 'prepend' && discordAutoRelayEnabled) {
+                        void ensureLatestItemRelayed();
+                    }
                 } else {
                     // Filter new items based on current criteria
                     const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType);
@@ -1709,6 +2475,10 @@
                     if (updatedItems.length > 0) {
                         updateExistingItems(updatedItems);
                     }
+                }
+
+                if (!wasFirstLoad) {
+                    queueDiscordRelaySync({ addedItems, updatedItems, mode });
                 }
                 
                 return { addedItems, updatedItems, rawItems: newItems, pageInfo };
@@ -2476,6 +3246,11 @@
 
                 if (event.target === commentsModalBackdrop || event.target === commentsModalClose) {
                     closeCommentsModal();
+                    return;
+                }
+
+                if (event.target === discordDebugModalBackdrop || event.target === discordDebugModalClose) {
+                    closeDiscordDebugModal();
                 }
             });
 
@@ -2487,6 +3262,11 @@
 
                 if (event.key === 'Escape' && commentsModal.classList.contains('is-open')) {
                     closeCommentsModal();
+                    return;
+                }
+
+                if (event.key === 'Escape' && discordDebugModal.classList.contains('is-open')) {
+                    closeDiscordDebugModal();
                 }
             });
         }
