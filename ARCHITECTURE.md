@@ -5,7 +5,7 @@
 This repository is now organized around a small set of clear modules:
 
 - `index.html`
-  Page skeleton only. It contains the static DOM needed by the viewer itself, plus two empty mount points for optional features.
+  Page shell. It contains the document metadata and static asset links, the static DOM needed by the viewer itself, and two empty mount points for optional features.
 - `scripts/core/viewer-core.js`
   The main viewer module. It owns the feed lifecycle, rendering pipeline, filters, stats, sticky controls, history loading, attribute modal, and comments modal.
 - `scripts/features/discord/`
@@ -31,8 +31,9 @@ The guiding rule is:
 
 ### 1. Page Shell
 
-`index.html` now has three responsibilities only:
+`index.html` now has four responsibilities:
 
+- define the document metadata and static asset links
 - define the visible page structure
 - expose stable DOM IDs for the core viewer
 - expose mount points for optional features
@@ -43,6 +44,8 @@ The two feature mount points are:
 - `featureModalMount`
 
 This allows optional UI to be injected without mixing its markup into the main page shell.
+
+The optional feature markup is still injected dynamically, even though the current page shell statically links both `styles/main.css` and `styles/discord.css`.
 
 ### 2. Viewer Core
 
