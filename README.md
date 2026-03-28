@@ -8,7 +8,7 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 
 - Browse the Sina 7x24 feed through a same-origin proxy
 - Search by content, message ID, and time text
-- Filter by comment presence, detected source, and tag-based categories
+- Filter from the main select by comment/source presence and tag-based categories, with a separate focus-only toggle
 - Extract titles and trailing sources into standalone display blocks
 - Inspect raw attributes and comment data in dedicated modals
 - Auto-refresh the latest feed and load older history on demand

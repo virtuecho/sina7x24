@@ -45,13 +45,13 @@ The two feature mount points are:
 
 This allows optional UI to be injected without mixing its markup into the main page shell.
 
-The optional feature markup is still injected dynamically, even though the current page shell statically links both `styles/main.css` and `styles/discord.css`.
+The optional feature markup is injected dynamically, even though the current page shell statically links both `styles/main.css` and `styles/discord.css`.
 
 ### 2. Viewer Core
 
 `scripts/core/viewer-core.js` is the main application module.
 
-Internally it still has several clearly labeled responsibility groups:
+Internally it has several clearly labeled responsibility groups:
 
 - configuration constants
 - state

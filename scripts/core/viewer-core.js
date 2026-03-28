@@ -31,6 +31,7 @@ export function createViewerCore() {
         let isFirstLoad = true;
         let currentSearch = '';
         let currentType = 'all';
+        let focusFilterEnabled = false;
         let currentPage = 1;
         let isLoadingMore = false;
         let hasMorePages = true;
@@ -56,6 +57,7 @@ export function createViewerCore() {
         const stickyPanelContent = document.getElementById('stickyPanelContent');
         const searchInput = document.getElementById('searchInput');
         const typeFilter = document.getElementById('typeFilter');
+        const focusFilterBtn = document.getElementById('focusFilterBtn');
         const refreshBtn = document.getElementById('refreshBtn');
         const developerModeBtn = document.getElementById('developerModeBtn');
         const developerPanel = document.getElementById('developerPanel');
@@ -126,6 +128,7 @@ export function createViewerCore() {
             updateDeveloperPanelVisibility();
             updateTitleModeButton();
             updateSourceModeButton();
+            updateFocusFilterButton();
             updateLatestRefreshButton();
             updateItemLimitButton();
             fetchData();
@@ -148,6 +151,8 @@ export function createViewerCore() {
                 currentType = this.value;
                 filterContent();
             });
+
+            focusFilterBtn.addEventListener('click', toggleFocusFilter);
             
             refreshBtn.addEventListener('click', fetchData);
             developerModeBtn.addEventListener('click', toggleDeveloperMode);
@@ -238,6 +243,24 @@ export function createViewerCore() {
             filterContent();
         }
 
+        function updateFocusFilterButton() {
+            const label = focusFilterEnabled ? '只看焦点：开' : '只看焦点：关';
+            const tooltip = focusFilterEnabled
+                ? '当前只显示带有焦点标签的消息；点击恢复显示全部焦点状态'
+                : '当前不过滤焦点标签；点击后只显示焦点消息';
+
+            focusFilterBtn.textContent = label;
+            focusFilterBtn.classList.toggle('is-active', focusFilterEnabled);
+            focusFilterBtn.setAttribute('title', tooltip);
+            focusFilterBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function toggleFocusFilter() {
+            focusFilterEnabled = !focusFilterEnabled;
+            updateFocusFilterButton();
+            filterContent();
+        }
+
         function updateRefreshIntervalControls() {
             const seconds = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
             const tooltip = `当前每 ${seconds} 秒自动刷新一次`;
@@ -318,7 +341,7 @@ export function createViewerCore() {
         }
 
         function getCurrentPrimaryItem() {
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, focusFilterEnabled);
             return filteredItems.length > 0 ? filteredItems[0] : null;
         }
 
@@ -615,7 +638,7 @@ export function createViewerCore() {
                     }
                 } else {
                     // Filter new items based on current criteria
-                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType);
+                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType, focusFilterEnabled);
                     if (filteredNewItems.length > 0) {
                         if (mode === 'prepend') {
                             renderNewItems(filteredNewItems);
@@ -770,7 +793,7 @@ export function createViewerCore() {
         }
         
         // Filter items by criteria
-        function filterItemsByCriteria(items, searchText, selectedType) {
+        function filterItemsByCriteria(items, searchText, selectedType, requireFocus = false) {
             return items.filter(item => {
                 const matchesSearch = getSearchableText(item).includes(searchText);
                 const commentTotal = Number(item.comment_list?.total) || 0;
@@ -780,11 +803,13 @@ export function createViewerCore() {
                 const headlineParts = extractHeadlineParts(originalText);
                 const sourceParts = extractTrailingSource(headlineParts.body || originalText);
                 const hasSource = Boolean(sourceParts.source);
+                const isFocusItem = item.tag.some(t => String(t?.id) === '9' || String(t?.name || '').trim() === '焦点');
                 const matchesType = selectedType === 'all'
                     || (selectedType === 'has-comments' && hasComments)
                     || (selectedType === 'has-source' && hasSource)
                     || item.tag.some(t => t.id.toString() === selectedType);
-                return matchesSearch && matchesType;
+                const matchesFocusFilter = !requireFocus || isFocusItem;
+                return matchesSearch && matchesType && matchesFocusFilter;
             });
         }
         
@@ -1432,7 +1457,7 @@ export function createViewerCore() {
         
         // Filter content
         function filterContent() {
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, focusFilterEnabled);
             
             updateVisibleStats(filteredItems.length);
             renderContent(filteredItems);
@@ -1447,7 +1472,7 @@ export function createViewerCore() {
             updatedItemsEl.textContent = updatedCount;
             
             // Update visible item count
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, focusFilterEnabled);
             visibleItemsEl.textContent = filteredItems.length;
         }
         
