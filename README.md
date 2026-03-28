@@ -24,8 +24,9 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 - `scripts/features/discord/` — optional Discord relay feature
 - `scripts/app.js` — frontend bootstrap
 - `styles/` — main and Discord-specific styles
-- `server/` — local Node proxy routes and app composition
-- `functions/` — serverless API routes and shared helpers
+- `backend/core/` — runtime-agnostic backend handlers and shared validation rules
+- `server/` — local Node adapter layer and app composition
+- `functions/` — serverless API adapter routes
 - `ARCHITECTURE.md` — module-level architecture notes
 
 ## Requirements

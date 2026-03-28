@@ -24,8 +24,9 @@
 - `scripts/features/discord/` — 可选的 Discord 转发功能
 - `scripts/app.js` — 前端启动入口
 - `styles/` — 主页面样式和 Discord 专用样式
-- `server/` — 本地 Node 代理路由与应用装配
-- `functions/` — 无服务器 API 路由与共享辅助模块
+- `backend/core/` — 运行时无关的后端处理器与共享校验规则
+- `server/` — 本地 Node 适配层与应用装配
+- `functions/` — 无服务器 API 适配层路由
 - `ARCHITECTURE.md` — 模块级架构说明
 
 ## 环境要求

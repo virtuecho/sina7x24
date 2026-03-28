@@ -2,6 +2,7 @@
   "name": "sina-7x24-proxy-viewer",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Serve the Sina 7x24 viewer through a same-origin proxy.",
   "scripts": {
     "start": "node server.js",
@@ -11,7 +12,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "express": "^5.1.0",
-    "http-proxy-middleware": "^3.0.5"
+    "express": "^5.1.0"
   }
 }

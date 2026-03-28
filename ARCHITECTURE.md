@@ -2,40 +2,54 @@
 
 ## Goal
 
-This repository is now organized around a small set of clear modules:
+This repository now separates the backend into:
 
-- `index.html`
-  Page shell. It contains the document metadata and static asset links, the static DOM needed by the viewer itself, and two empty mount points for optional features.
-- `scripts/core/viewer-core.js`
-  The main viewer module. It owns the feed lifecycle, rendering pipeline, filters, stats, sticky controls, history loading, attribute modal, and comments modal.
-- `scripts/features/discord/`
-  Optional Discord feature package. It injects its own button, summary line, modal, styles, state, and webhook relay logic.
-- `scripts/app.js`
-  Thin bootstrap file. It creates the core viewer, starts it, and then installs optional features.
-- `styles/main.css`
-  Shared page styling for the main viewer.
-- `styles/discord.css`
-  Styling used only by the Discord feature.
-- `server/`
-  Local Node proxy modules.
-- `functions/_shared/`
-  Shared helper modules for the serverless Pages Functions routes.
+- a shared runtime-agnostic core in `backend/core/`
+- a local Node adapter layer in `server/`
+- a Cloudflare Pages Functions adapter layer in `functions/api/`
+
+The frontend still stays single-source and same-origin:
+
+- `index.html` — page shell and static mount points
+- `scripts/core/viewer-core.js` — feed lifecycle, filtering, rendering, stats, and modals
+- `scripts/features/discord/` — optional Discord relay feature
+- `scripts/app.js` — frontend bootstrap
+- `styles/` — viewer and Discord styles
 
 The guiding rule is:
 
-- the viewer core should not know Discord exists
-- the Discord feature should only talk to the core through explicit hooks
-- the server and Pages Functions should expose thin route files and reusable helpers
+- browser code should only call same-origin `/api/...`
+- shared backend rules should live in `backend/core/`
+- Node and Cloudflare files should be thin adapters
+
+## System Overview
+
+```mermaid
+flowchart LR
+  Browser["Browser UI<br/>index.html + scripts/"] -->|GET /api/zhibo/feed| Node["Local Node adapter<br/>server/"]
+  Browser -->|GET /api/avatar| Node
+  Browser -->|POST /api/discord-webhook| Node
+
+  Browser -. deployed on Cloudflare .-> Pages["Cloudflare Pages"]
+  Pages -->|/api/*| Functions["Pages Functions adapter<br/>functions/api/"]
+
+  Node --> Core["Shared backend core<br/>backend/core/"]
+  Functions --> Core
+
+  Core --> Sina["Sina API"]
+  Core --> Avatar["Allowed image hosts"]
+  Core --> Discord["Discord Webhook API"]
+```
 
 ## Frontend Modules
 
 ### 1. Page Shell
 
-`index.html` now has four responsibilities:
+`index.html` has four responsibilities:
 
-- define the document metadata and static asset links
+- define document metadata and static asset links
 - define the visible page structure
-- expose stable DOM IDs for the core viewer
+- expose stable DOM IDs for the viewer
 - expose mount points for optional features
 
 The two feature mount points are:
@@ -43,34 +57,17 @@ The two feature mount points are:
 - `developerFeatureMount`
 - `featureModalMount`
 
-This allows optional UI to be injected without mixing its markup into the main page shell.
-
-The optional feature markup is injected dynamically, even though the current page shell statically links both `styles/main.css` and `styles/discord.css`.
-
 ### 2. Viewer Core
 
-`scripts/core/viewer-core.js` is the main application module.
+`scripts/core/viewer-core.js` owns:
 
-Internally it has several clearly labeled responsibility groups:
-
-- configuration constants
-- state
-- DOM references
-- initialization
-- top control behavior
-- sticky panel behavior
 - feed fetching and merge logic
-- filtering and rendering
-- attribute/comment inspection
-- stats and loading state
-- history loading
-- shared text and time helpers
+- filters and rendering
+- sticky controls and stats
+- attribute and comment modals
+- feature hook registration
 
-The core exports a factory:
-
-- `createViewerCore()`
-
-The returned object exposes only the integration points that other modules are allowed to use:
+The core exposes a small public surface:
 
 - `init()`
 - `onLatestFeedReady(handler)`
@@ -80,147 +77,117 @@ The returned object exposes only the integration points that other modules are a
 - `getFeatureMounts()`
 - `buildRelayContext(item)`
 
-This keeps feature modules from reaching into private viewer state directly.
-
 ### 3. Discord Feature
 
-The Discord feature is now split into:
+The Discord feature is still a browser-side optional package:
 
 - `scripts/features/discord/template.js`
 - `scripts/features/discord/feature.js`
 - `styles/discord.css`
 
-`template.js` is pure markup generation.
+It injects its own UI, keeps its own browser state, formats messages, and calls the same-origin backend relay endpoint.
 
-`feature.js` is the behavior layer. It:
+## Backend Layout
 
-- injects its own panel section into `developerFeatureMount`
-- injects its own modal into `featureModalMount`
-- owns all Discord-specific state
-- subscribes to core feed hooks
-- formats relay messages
-- performs webhook send/update requests
-- manages its own UI status and modal lifecycle
+### Shared Core
 
-The core viewer does not import Discord code.
+`backend/core/` contains the runtime-agnostic backend logic:
 
-Instead, the bootstrap file imports Discord and installs it after the core is ready.
+- `config.js` — shared defaults and allowlists
+- `hosts.js` — host suffix matching
+- `http.js` — JSON responses, timeout-aware fetch helpers, and response cloning
+- `sina.js` — Sina API target building and proxy handler
+- `avatar.js` — avatar URL validation and image proxy handler
+- `discord.js` — Discord webhook validation and relay handler
 
-### 4. Bootstrap
+These modules use standard Web APIs:
 
-`scripts/app.js` is intentionally small.
+- `Request`
+- `Response`
+- `fetch`
+- `Headers`
+- `URL`
+- `AbortController`
 
-Its job is:
+That makes the core portable across local Node and Cloudflare.
 
-1. create the core viewer
-2. initialize the core viewer
-3. install optional features
-
-That keeps the startup path easy to read and easy to modify.
-
-## Discord Removal
-
-The Discord feature is designed to be removable.
-
-To remove it cleanly:
-
-1. delete `scripts/features/discord/`
-2. delete `styles/discord.css`
-3. remove the Discord stylesheet import from `index.html`
-4. remove the Discord feature import/install call from `scripts/app.js`
-5. optionally remove the Discord proxy route files if the backend integration is no longer needed
-
-After that:
-
-- no Discord button will be rendered
-- no Discord modal will exist
-- no Discord state will be created
-- no feed hook will try to relay messages
-- the core viewer will continue to work normally
-
-This is the main reason the Discord UI is injected dynamically instead of being hardcoded into `index.html`.
-
-## Local Node Proxy
+### Local Node Adapter
 
 The local Node server is now structured like this:
 
-- `server.js`
-  Minimal startup file
-- `server/create-app.js`
-  App composition
-- `server/config.js`
-  Central server settings
-- `server/utils/url-guards.js`
-  Host allowlists and Discord URL builders
-- `server/routes/health.js`
-  Health route
-- `server/routes/zhibo-proxy.js`
-  Sina API proxy
-- `server/routes/avatar.js`
-  Avatar proxy
-- `server/routes/discord-webhook.js`
-  Discord webhook relay proxy
+- `server.js` — minimal startup file
+- `server/config.js` — local runtime config and root paths
+- `server/adapters/web-interop.js` — Express <-> Web Request/Response bridge
+- `server/create-app.js` — app composition
+- `server/routes/health.js` — local-only health check
+- `server/routes/zhibo-proxy.js` — thin adapter for the shared Sina handler
+- `server/routes/avatar.js` — thin adapter for the shared avatar handler
+- `server/routes/discord-webhook.js` — thin adapter for the shared Discord handler
 
-This makes it obvious where to edit behavior:
+### Cloudflare Adapter
 
-- routing/composition in `create-app.js`
-- config in `config.js`
-- URL validation in `utils/`
-- endpoint behavior in `routes/`
+The Cloudflare side now stays intentionally thin:
 
-## Pages Functions
+- `functions/api/zhibo/feed.js`
+- `functions/api/avatar.js`
+- `functions/api/discord-webhook.js`
 
-The serverless side follows the same pattern:
+Each file delegates into `backend/core/` with Cloudflare request objects and shared defaults.
 
-- `functions/api/...`
-  Thin entry files
-- `functions/_shared/http.js`
-  Shared JSON response helper
-- `functions/_shared/sina.js`
-  Sina target URL builder
-- `functions/_shared/avatar.js`
-  Avatar URL validation
-- `functions/_shared/discord.js`
-  Discord URL validation and message URL builders
+## Backend Request Flow
 
-This keeps the Pages Functions layout consistent with the local Node proxy.
+```mermaid
+flowchart TD
+  Request["Incoming Request"] --> Adapter{"Runtime adapter"}
+  Adapter -->|"Express route"| NodeAdapter["server/routes/*.js"]
+  Adapter -->|"Pages Function"| CfAdapter["functions/api/*.js"]
 
-## Data Flow
+  NodeAdapter --> Bridge["server/adapters/web-interop.js"]
+  Bridge --> CoreHandler["backend/core handler"]
+  CfAdapter --> CoreHandler
+
+  CoreHandler --> Validate["Validate URL / body / limits"]
+  Validate --> Fetch["fetch upstream with timeout"]
+  Fetch --> Response["Return Web Response"]
+  Response --> NodeAdapter
+  Response --> CfAdapter
+```
+
+## Current Data Flow
 
 ### Feed Flow
 
-1. the core viewer requests `/api/zhibo/feed`
-2. the proxy forwards to Sina
-3. the core merges items into its local state
-4. the core updates stats, DOM, and history state
-5. the core emits feature hooks for optional consumers
+```mermaid
+sequenceDiagram
+  participant Browser
+  participant Adapter as Node or Pages adapter
+  participant Core as backend/core/sina.js
+  participant Sina as zhibo.sina.com.cn
+
+  Browser->>Adapter: GET /api/zhibo/feed?...
+  Adapter->>Core: handleSinaApiProxyRequest(request)
+  Core->>Sina: fetch upstream feed
+  Sina-->>Core: upstream response
+  Core-->>Adapter: Response
+  Adapter-->>Browser: JSON feed
+```
 
 ### Discord Flow
 
-1. the Discord feature is installed by `scripts/app.js`
-2. it injects its own UI into the page
-3. it subscribes to core hooks
-4. when new feed items arrive, it decides whether to create or edit Discord messages
-5. it sends requests to `/api/discord-webhook`
+The current Discord flow is still browser-driven:
 
-The Discord feature never owns the feed; it only reacts to core events.
+1. the Discord feature is installed by `scripts/app.js`
+2. it keeps webhook state in browser memory
+3. it decides whether to create or edit Discord messages
+4. it sends requests to `/api/discord-webhook`
+5. the backend validates the request and forwards it to Discord
+
+This means the backend relay is shared now, but the relay orchestration itself is still in the browser.
 
 ## Why This Layout Is Easier To Maintain
 
-The previous layout mixed:
+This layout gives three practical benefits:
 
-- page structure
-- page styles
-- viewer state
-- modal logic
-- sticky control logic
-- Discord UI
-- Discord relay behavior
-
-The new layout makes those boundaries visible in the file tree itself.
-
-That gives three practical benefits:
-
-- someone reading the repo can find the right place faster
-- optional features can be removed with fewer side effects
-- future refactors can happen module by module instead of inside one giant file
+- the same backend rules only live in one place now
+- local Node and Cloudflare stay supported without duplicating validation logic
+- future work can move Discord orchestration out of the browser without rewriting route behavior twice

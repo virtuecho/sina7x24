@@ -1,14 +1,31 @@
-const path = require('path');
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  DEFAULT_ALLOWED_DISCORD_HOST_SUFFIXES,
+  DEFAULT_ALLOWED_IMAGE_HOST_SUFFIXES,
+  DEFAULT_API_TIMEOUT_MS,
+  DEFAULT_AVATAR_TIMEOUT_MS,
+  DEFAULT_DISCORD_WEBHOOK_TIMEOUT_MS,
+  DEFAULT_SINA_ORIGIN
+} from '../backend/core/config.js';
 
-const ROOT_DIR = path.resolve(__dirname, '..');
+const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-module.exports = {
-  PORT: Number(process.env.PORT) || 3000,
+const PORT = Number(process.env.PORT) || 3000;
+const SINA_ORIGIN = DEFAULT_SINA_ORIGIN;
+const API_TIMEOUT_MS = DEFAULT_API_TIMEOUT_MS;
+const AVATAR_TIMEOUT_MS = DEFAULT_AVATAR_TIMEOUT_MS;
+const DISCORD_WEBHOOK_TIMEOUT_MS = DEFAULT_DISCORD_WEBHOOK_TIMEOUT_MS;
+const ALLOWED_IMAGE_HOST_SUFFIXES = DEFAULT_ALLOWED_IMAGE_HOST_SUFFIXES;
+const ALLOWED_DISCORD_HOST_SUFFIXES = DEFAULT_ALLOWED_DISCORD_HOST_SUFFIXES;
+
+export {
+  ALLOWED_DISCORD_HOST_SUFFIXES,
+  ALLOWED_IMAGE_HOST_SUFFIXES,
+  API_TIMEOUT_MS,
+  AVATAR_TIMEOUT_MS,
+  DISCORD_WEBHOOK_TIMEOUT_MS,
+  PORT,
   ROOT_DIR,
-  SINA_ORIGIN: 'https://zhibo.sina.com.cn',
-  API_TIMEOUT_MS: 10000,
-  AVATAR_TIMEOUT_MS: 10000,
-  DISCORD_WEBHOOK_TIMEOUT_MS: 15000,
-  ALLOWED_IMAGE_HOST_SUFFIXES: ['sinaimg.cn', 'sinaimg.com'],
-  ALLOWED_DISCORD_HOST_SUFFIXES: ['discord.com', 'discordapp.com']
+  SINA_ORIGIN
 };
