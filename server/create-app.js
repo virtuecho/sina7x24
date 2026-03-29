@@ -1,18 +1,15 @@
 import path from 'node:path';
 import express from 'express';
 import {
-  ALLOWED_DISCORD_HOST_SUFFIXES,
   ALLOWED_IMAGE_HOST_SUFFIXES,
   API_TIMEOUT_MS,
   AVATAR_TIMEOUT_MS,
-  DISCORD_WEBHOOK_TIMEOUT_MS,
   ROOT_DIR,
   SINA_ORIGIN
 } from './config.js';
 import { registerHealthRoute } from './routes/health.js';
 import { registerZhiboProxyRoute } from './routes/zhibo-proxy.js';
 import { registerAvatarRoute } from './routes/avatar.js';
-import { registerDiscordWebhookRoute } from './routes/discord-webhook.js';
 
 function createApp() {
   const app = express();
@@ -28,10 +25,6 @@ function createApp() {
   registerAvatarRoute(app, {
     avatarTimeoutMs: AVATAR_TIMEOUT_MS,
     allowedImageHostSuffixes: ALLOWED_IMAGE_HOST_SUFFIXES
-  });
-  registerDiscordWebhookRoute(app, {
-    discordWebhookTimeoutMs: DISCORD_WEBHOOK_TIMEOUT_MS,
-    allowedDiscordHostSuffixes: ALLOWED_DISCORD_HOST_SUFFIXES
   });
 
   app.use(
