@@ -1,3 +1,15 @@
+const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
+  'connection',
+  'content-encoding',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade'
+]);
+
 function getExpressRequestOrigin(req) {
   const protocol = req.protocol || 'http';
   const host = req.get('host') || '127.0.0.1';
@@ -61,7 +73,12 @@ export async function sendWebResponseToExpress(res, response) {
   res.status(response.status);
 
   response.headers.forEach((headerValue, headerName) => {
-    if (headerName.toLowerCase() === 'content-length') {
+    const normalizedHeaderName = headerName.toLowerCase();
+
+    if (
+      normalizedHeaderName === 'content-length'
+      || HOP_BY_HOP_RESPONSE_HEADERS.has(normalizedHeaderName)
+    ) {
       return;
     }
 
