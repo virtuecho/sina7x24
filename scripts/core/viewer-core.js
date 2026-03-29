@@ -31,6 +31,7 @@ export function createViewerCore() {
         let isFirstLoad = true;
         let currentSearch = '';
         let currentType = 'all';
+        let focusFilterEnabled = false;
         let currentPage = 1;
         let isLoadingMore = false;
         let hasMorePages = true;
@@ -44,11 +45,6 @@ export function createViewerCore() {
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
-        const featureHooks = {
-            latestReady: new Set(),
-            sync: new Set()
-        };
-        
         // Stable DOM references owned by the page shell
         const contentList = document.getElementById('contentList');
         const stickyPanel = document.getElementById('stickyPanel');
@@ -56,6 +52,7 @@ export function createViewerCore() {
         const stickyPanelContent = document.getElementById('stickyPanelContent');
         const searchInput = document.getElementById('searchInput');
         const typeFilter = document.getElementById('typeFilter');
+        const focusFilterBtn = document.getElementById('focusFilterBtn');
         const refreshBtn = document.getElementById('refreshBtn');
         const developerModeBtn = document.getElementById('developerModeBtn');
         const developerPanel = document.getElementById('developerPanel');
@@ -65,7 +62,6 @@ export function createViewerCore() {
         const applyRefreshSecondsBtn = document.getElementById('applyRefreshSecondsBtn');
         const pauseLatestRefreshBtn = document.getElementById('pauseLatestRefreshBtn');
         const idOrderStatus = document.getElementById('idOrderStatus');
-        const developerFeatureMount = document.getElementById('developerFeatureMount');
         const itemLimitBtn = document.getElementById('itemLimitBtn');
         const refreshIcon = document.getElementById('refreshIcon');
         const errorMessage = document.getElementById('errorMessage');
@@ -91,28 +87,6 @@ export function createViewerCore() {
         const commentsModalClose = document.getElementById('commentsModalClose');
         const commentsSummary = document.getElementById('commentsSummary');
         const commentsList = document.getElementById('commentsList');
-        const featureModalMount = document.getElementById('featureModalMount');
-
-        function emitFeatureHandlers(handlers, payload) {
-            handlers.forEach(handler => {
-                Promise.resolve()
-                    .then(() => handler(payload))
-                    .catch(error => {
-                        console.error('Feature hook failed:', error);
-                    });
-            });
-        }
-
-        function onLatestFeedReady(handler) {
-            featureHooks.latestReady.add(handler);
-            return () => featureHooks.latestReady.delete(handler);
-        }
-
-        function onFeedItemsSynced(handler) {
-            featureHooks.sync.add(handler);
-            return () => featureHooks.sync.delete(handler);
-        }
-
         // Initialization
         function init() {
             if (window.location.protocol === 'file:') {
@@ -126,6 +100,7 @@ export function createViewerCore() {
             updateDeveloperPanelVisibility();
             updateTitleModeButton();
             updateSourceModeButton();
+            updateFocusFilterButton();
             updateLatestRefreshButton();
             updateItemLimitButton();
             fetchData();
@@ -148,6 +123,8 @@ export function createViewerCore() {
                 currentType = this.value;
                 filterContent();
             });
+
+            focusFilterBtn.addEventListener('click', toggleFocusFilter);
             
             refreshBtn.addEventListener('click', fetchData);
             developerModeBtn.addEventListener('click', toggleDeveloperMode);
@@ -238,6 +215,24 @@ export function createViewerCore() {
             filterContent();
         }
 
+        function updateFocusFilterButton() {
+            const label = focusFilterEnabled ? '只看焦点：开' : '只看焦点：关';
+            const tooltip = focusFilterEnabled
+                ? '当前只显示带有焦点标签的消息；点击恢复显示全部焦点状态'
+                : '当前不过滤焦点标签；点击后只显示焦点消息';
+
+            focusFilterBtn.textContent = label;
+            focusFilterBtn.classList.toggle('is-active', focusFilterEnabled);
+            focusFilterBtn.setAttribute('title', tooltip);
+            focusFilterBtn.setAttribute('aria-label', tooltip);
+        }
+
+        function toggleFocusFilter() {
+            focusFilterEnabled = !focusFilterEnabled;
+            updateFocusFilterButton();
+            filterContent();
+        }
+
         function updateRefreshIntervalControls() {
             const seconds = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
             const tooltip = `当前每 ${seconds} 秒自动刷新一次`;
@@ -303,30 +298,6 @@ export function createViewerCore() {
             refreshBtn.disabled = isDisabled;
             refreshBtn.setAttribute('title', tooltip);
             refreshBtn.setAttribute('aria-label', tooltip);
-        }
-
-        function truncateText(text, maxLength, suffix = '\n[已截断]') {
-            if (typeof text !== 'string') {
-                return '';
-            }
-
-            if (text.length <= maxLength) {
-                return text;
-            }
-
-            return `${text.slice(0, Math.max(0, maxLength - suffix.length))}${suffix}`;
-        }
-
-        function getCurrentPrimaryItem() {
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
-            return filteredItems.length > 0 ? filteredItems[0] : null;
-        }
-
-        function getCurrentBulkItems(limit = 100) {
-            return allItems
-                .slice(0, limit)
-                .slice()
-                .sort((left, right) => Number(left.id) - Number(right.id));
         }
 
         function updateItemLimitButton() {
@@ -608,14 +579,9 @@ export function createViewerCore() {
                     filterContent();
                     isFirstLoad = false;
 
-                    if (wasFirstLoad && mode === 'prepend') {
-                        emitFeatureHandlers(featureHooks.latestReady, {
-                            latestItem: allItems[0] || null
-                        });
-                    }
                 } else {
                     // Filter new items based on current criteria
-                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType);
+                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType, focusFilterEnabled);
                     if (filteredNewItems.length > 0) {
                         if (mode === 'prepend') {
                             renderNewItems(filteredNewItems);
@@ -630,10 +596,6 @@ export function createViewerCore() {
                     }
                 }
 
-                if (!wasFirstLoad) {
-                    emitFeatureHandlers(featureHooks.sync, { addedItems, updatedItems, mode });
-                }
-                
                 return { addedItems, updatedItems, rawItems: newItems, pageInfo };
             } else {
                 showError('API返回的数据格式不正确');
@@ -770,7 +732,7 @@ export function createViewerCore() {
         }
         
         // Filter items by criteria
-        function filterItemsByCriteria(items, searchText, selectedType) {
+        function filterItemsByCriteria(items, searchText, selectedType, requireFocus = false) {
             return items.filter(item => {
                 const matchesSearch = getSearchableText(item).includes(searchText);
                 const commentTotal = Number(item.comment_list?.total) || 0;
@@ -780,11 +742,13 @@ export function createViewerCore() {
                 const headlineParts = extractHeadlineParts(originalText);
                 const sourceParts = extractTrailingSource(headlineParts.body || originalText);
                 const hasSource = Boolean(sourceParts.source);
+                const isFocusItem = item.tag.some(t => String(t?.id) === '9' || String(t?.name || '').trim() === '焦点');
                 const matchesType = selectedType === 'all'
                     || (selectedType === 'has-comments' && hasComments)
                     || (selectedType === 'has-source' && hasSource)
                     || item.tag.some(t => t.id.toString() === selectedType);
-                return matchesSearch && matchesType;
+                const matchesFocusFilter = !requireFocus || isFocusItem;
+                return matchesSearch && matchesType && matchesFocusFilter;
             });
         }
         
@@ -1432,7 +1396,7 @@ export function createViewerCore() {
         
         // Filter content
         function filterContent() {
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, focusFilterEnabled);
             
             updateVisibleStats(filteredItems.length);
             renderContent(filteredItems);
@@ -1447,7 +1411,7 @@ export function createViewerCore() {
             updatedItemsEl.textContent = updatedCount;
             
             // Update visible item count
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType);
+            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, focusFilterEnabled);
             visibleItemsEl.textContent = filteredItems.length;
         }
         
@@ -1726,25 +1690,6 @@ export function createViewerCore() {
         }
 
         return {
-            init,
-            onLatestFeedReady,
-            onFeedItemsSynced,
-            getCurrentPrimaryItem,
-            getCurrentBulkItems,
-            getFeatureMounts() {
-                return {
-                    developerFeatureMount,
-                    featureModalMount
-                };
-            },
-            buildRelayContext(item) {
-                return {
-                    item,
-                    formatTime,
-                    extractHeadlineParts,
-                    extractTrailingSource,
-                    truncateText
-                };
-            }
+            init
         };
 }

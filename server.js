@@ -1,5 +1,5 @@
-const { createApp } = require('./server/create-app');
-const { PORT } = require('./server/config');
+import { createApp } from './server/create-app.js';
+import { PORT } from './server/config.js';
 
 const app = createApp();
 

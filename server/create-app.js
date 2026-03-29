@@ -1,50 +1,45 @@
-const path = require('path');
-const express = require('express');
-const config = require('./config');
-const { createUrlHelpers } = require('./utils/url-guards');
-const { registerHealthRoute } = require('./routes/health');
-const { registerZhiboProxyRoute } = require('./routes/zhibo-proxy');
-const { registerAvatarRoute } = require('./routes/avatar');
-const { registerDiscordWebhookRoute } = require('./routes/discord-webhook');
+import path from 'node:path';
+import express from 'express';
+import {
+  ALLOWED_IMAGE_HOST_SUFFIXES,
+  API_TIMEOUT_MS,
+  AVATAR_TIMEOUT_MS,
+  ROOT_DIR,
+  SINA_ORIGIN
+} from './config.js';
+import { registerHealthRoute } from './routes/health.js';
+import { registerZhiboProxyRoute } from './routes/zhibo-proxy.js';
+import { registerAvatarRoute } from './routes/avatar.js';
 
 function createApp() {
   const app = express();
-  const urlHelpers = createUrlHelpers({
-    allowedImageHosts: config.ALLOWED_IMAGE_HOST_SUFFIXES,
-    allowedDiscordHosts: config.ALLOWED_DISCORD_HOST_SUFFIXES
-  });
 
   app.disable('x-powered-by');
   app.use(express.json({ limit: '256kb' }));
 
   registerHealthRoute(app);
   registerZhiboProxyRoute(app, {
-    sinaOrigin: config.SINA_ORIGIN,
-    apiTimeoutMs: config.API_TIMEOUT_MS
+    sinaOrigin: SINA_ORIGIN,
+    apiTimeoutMs: API_TIMEOUT_MS
   });
   registerAvatarRoute(app, {
-    avatarTimeoutMs: config.AVATAR_TIMEOUT_MS,
-    isAllowedImageHost: urlHelpers.isAllowedImageHost
-  });
-  registerDiscordWebhookRoute(app, {
-    discordWebhookTimeoutMs: config.DISCORD_WEBHOOK_TIMEOUT_MS,
-    buildDiscordWebhookExecuteUrl: urlHelpers.buildDiscordWebhookExecuteUrl,
-    buildDiscordWebhookMessageUrl: urlHelpers.buildDiscordWebhookMessageUrl
+    avatarTimeoutMs: AVATAR_TIMEOUT_MS,
+    allowedImageHostSuffixes: ALLOWED_IMAGE_HOST_SUFFIXES
   });
 
   app.use(
-    express.static(config.ROOT_DIR, {
+    express.static(ROOT_DIR, {
       extensions: ['html']
     })
   );
 
   app.get('/', (_req, res) => {
-    res.sendFile(path.join(config.ROOT_DIR, 'index.html'));
+    res.sendFile(path.join(ROOT_DIR, 'index.html'));
   });
 
   return app;
 }
 
-module.exports = {
+export {
   createApp
 };

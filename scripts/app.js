@@ -1,5 +1,4 @@
 import { createViewerCore } from './core/viewer-core.js';
-import { installDiscordFeature } from './features/discord/feature.js';
 
 function boot() {
     const core = createViewerCore();
@@ -8,8 +7,6 @@ function boot() {
     if (!started) {
         return;
     }
-
-    installDiscordFeature(core);
 }
 
 if (document.readyState === 'loading') {
