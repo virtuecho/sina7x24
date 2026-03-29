@@ -45,11 +45,6 @@ export function createViewerCore() {
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
-        const featureHooks = {
-            latestReady: new Set(),
-            sync: new Set()
-        };
-        
         // Stable DOM references owned by the page shell
         const contentList = document.getElementById('contentList');
         const stickyPanel = document.getElementById('stickyPanel');
@@ -67,7 +62,6 @@ export function createViewerCore() {
         const applyRefreshSecondsBtn = document.getElementById('applyRefreshSecondsBtn');
         const pauseLatestRefreshBtn = document.getElementById('pauseLatestRefreshBtn');
         const idOrderStatus = document.getElementById('idOrderStatus');
-        const developerFeatureMount = document.getElementById('developerFeatureMount');
         const itemLimitBtn = document.getElementById('itemLimitBtn');
         const refreshIcon = document.getElementById('refreshIcon');
         const errorMessage = document.getElementById('errorMessage');
@@ -93,28 +87,6 @@ export function createViewerCore() {
         const commentsModalClose = document.getElementById('commentsModalClose');
         const commentsSummary = document.getElementById('commentsSummary');
         const commentsList = document.getElementById('commentsList');
-        const featureModalMount = document.getElementById('featureModalMount');
-
-        function emitFeatureHandlers(handlers, payload) {
-            handlers.forEach(handler => {
-                Promise.resolve()
-                    .then(() => handler(payload))
-                    .catch(error => {
-                        console.error('Feature hook failed:', error);
-                    });
-            });
-        }
-
-        function onLatestFeedReady(handler) {
-            featureHooks.latestReady.add(handler);
-            return () => featureHooks.latestReady.delete(handler);
-        }
-
-        function onFeedItemsSynced(handler) {
-            featureHooks.sync.add(handler);
-            return () => featureHooks.sync.delete(handler);
-        }
-
         // Initialization
         function init() {
             if (window.location.protocol === 'file:') {
@@ -326,30 +298,6 @@ export function createViewerCore() {
             refreshBtn.disabled = isDisabled;
             refreshBtn.setAttribute('title', tooltip);
             refreshBtn.setAttribute('aria-label', tooltip);
-        }
-
-        function truncateText(text, maxLength, suffix = '\n[已截断]') {
-            if (typeof text !== 'string') {
-                return '';
-            }
-
-            if (text.length <= maxLength) {
-                return text;
-            }
-
-            return `${text.slice(0, Math.max(0, maxLength - suffix.length))}${suffix}`;
-        }
-
-        function getCurrentPrimaryItem() {
-            const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, focusFilterEnabled);
-            return filteredItems.length > 0 ? filteredItems[0] : null;
-        }
-
-        function getCurrentBulkItems(limit = 100) {
-            return allItems
-                .slice(0, limit)
-                .slice()
-                .sort((left, right) => Number(left.id) - Number(right.id));
         }
 
         function updateItemLimitButton() {
@@ -631,11 +579,6 @@ export function createViewerCore() {
                     filterContent();
                     isFirstLoad = false;
 
-                    if (wasFirstLoad && mode === 'prepend') {
-                        emitFeatureHandlers(featureHooks.latestReady, {
-                            latestItem: allItems[0] || null
-                        });
-                    }
                 } else {
                     // Filter new items based on current criteria
                     const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType, focusFilterEnabled);
@@ -653,10 +596,6 @@ export function createViewerCore() {
                     }
                 }
 
-                if (!wasFirstLoad) {
-                    emitFeatureHandlers(featureHooks.sync, { addedItems, updatedItems, mode });
-                }
-                
                 return { addedItems, updatedItems, rawItems: newItems, pageInfo };
             } else {
                 showError('API返回的数据格式不正确');
@@ -1751,25 +1690,6 @@ export function createViewerCore() {
         }
 
         return {
-            init,
-            onLatestFeedReady,
-            onFeedItemsSynced,
-            getCurrentPrimaryItem,
-            getCurrentBulkItems,
-            getFeatureMounts() {
-                return {
-                    developerFeatureMount,
-                    featureModalMount
-                };
-            },
-            buildRelayContext(item) {
-                return {
-                    item,
-                    formatTime,
-                    extractHeadlineParts,
-                    extractTrailingSource,
-                    truncateText
-                };
-            }
+            init
         };
 }

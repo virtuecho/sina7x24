@@ -4,6 +4,6 @@ function registerHealthRoute(app) {
   });
 }
 
-module.exports = {
+export {
   registerHealthRoute
 };
