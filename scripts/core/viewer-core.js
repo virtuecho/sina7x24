@@ -6,7 +6,10 @@ export function createViewerCore() {
         // Core configuration
         // Use the local same-origin proxy instead of public CORS relay services.
         const API_BASE = '/api/zhibo/feed';
-        const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&page_size=100&type=0';
+        const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&type=0';
+        const SINA_PAGE_SIZE = 30;
+        const SINA_INITIAL_PAGE_SIZE = 100;
+        const SINA_HISTORY_PAGE_SIZE = 100;
         const REQUEST_TIMEOUT = 10000;
         const RETRY_DELAY_MS = 1200;
         const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 60000;
@@ -19,8 +22,8 @@ export function createViewerCore() {
         const STICKY_PANEL_COLLAPSE_SCROLL_Y = 120;
         const STICKY_PANEL_COMPACT_SCROLL_Y = 28;
         
-        function buildApiUrl(page) {
-            return `${API_BASE}?${API_DEFAULT_PARAMS}&page=${page}`;
+        function buildApiUrl(page, pageSize = SINA_PAGE_SIZE) {
+            return `${API_BASE}?${API_DEFAULT_PARAMS}&page_size=${pageSize}&page=${page}`;
         }
 
         // Core state
@@ -525,7 +528,8 @@ export function createViewerCore() {
                 showGlobalLoading();
                 hideError();
                 
-                const data = await fetchJson(buildApiUrl(1), { page: 1, purpose: 'latest' });
+                const latestPageSize = isFirstLoad ? SINA_INITIAL_PAGE_SIZE : SINA_PAGE_SIZE;
+                const data = await fetchJson(buildApiUrl(1, latestPageSize), { page: 1, purpose: 'latest' });
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
             } catch (error) {
@@ -1651,7 +1655,8 @@ export function createViewerCore() {
             
             try {
                 const nextPage = currentPage + 1;
-                const data = await fetchJson(buildApiUrl(nextPage), { page: nextPage, purpose: 'history' });
+                // Keep history pagination aligned with the initial page window.
+                const data = await fetchJson(buildApiUrl(nextPage, SINA_HISTORY_PAGE_SIZE), { page: nextPage, purpose: 'history' });
                 const result = processData(data, { page: nextPage, mode: 'append' });
                 
                 currentPage = nextPage;
