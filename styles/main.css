@@ -980,3 +980,397 @@ html {
                 border-radius: 14px;
             }
         }
+
+        body.minimal-mode {
+            background: #ffffff;
+            color: #111111;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Lato, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            line-height: 1.35;
+        }
+
+        body.minimal-mode * {
+            font-family: inherit;
+            box-shadow: none;
+            text-shadow: none;
+        }
+
+        body.minimal-mode .container {
+            max-width: 1120px;
+            padding: 10px 18px;
+        }
+
+        body.minimal-mode header {
+            background: #ffffff;
+            color: #111111;
+            padding: 8px 0 10px;
+            border-radius: 0;
+            border-bottom: 1px solid #111111;
+            margin-bottom: 8px;
+        }
+
+        body.minimal-mode .header-content {
+            padding: 0;
+        }
+
+        body.minimal-mode h1 {
+            font-size: 24px;
+            font-weight: normal;
+            line-height: 1.2;
+        }
+
+        body.minimal-mode h1 i {
+            display: none;
+        }
+
+        body.minimal-mode .sticky-panel {
+            position: static !important;
+            top: auto;
+            z-index: auto;
+            margin-bottom: 10px;
+            padding: 6px 0 8px;
+            border: 0;
+            border-bottom: 1px solid #999999;
+            border-radius: 0;
+            background: #ffffff;
+            backdrop-filter: none;
+            overflow: visible;
+            transition: none;
+        }
+
+        body.minimal-mode .sticky-panel__mobile-toggle {
+            display: none !important;
+        }
+
+        body.minimal-mode .stats {
+            display: none;
+        }
+
+        body.minimal-mode .fas,
+        body.minimal-mode .far,
+        body.minimal-mode .fab {
+            font-family: 'Font Awesome 6 Free';
+        }
+
+        body.minimal-mode .sticky-panel__content,
+        body.minimal-mode .sticky-panel.is-compact .sticky-panel__content {
+            max-height: none;
+            opacity: 1;
+            transform: none;
+            overflow: visible;
+            pointer-events: auto;
+        }
+
+        body.minimal-mode .sticky-panel.is-compact,
+        body.minimal-mode .sticky-panel.is-mobile-expanded {
+            padding: 6px 0 8px;
+            margin-bottom: 10px;
+            border-radius: 0;
+            background: #ffffff;
+        }
+
+        body.minimal-mode .controls {
+            margin: 0 0 6px;
+            gap: 6px;
+            align-items: center;
+        }
+
+        body.minimal-mode .search-box {
+            max-width: 280px;
+        }
+
+        body.minimal-mode .search-box input,
+        body.minimal-mode select,
+        body.minimal-mode input[type="number"],
+        body.minimal-mode .refresh-btn {
+            min-height: 28px;
+            padding: 3px 7px;
+            border: 1px solid #777777;
+            border-radius: 0;
+            background: #ffffff;
+            color: #111111;
+            font-size: 13px;
+            font-weight: normal;
+            transition: none;
+        }
+
+        body.minimal-mode .search-box input {
+            padding-right: 24px;
+        }
+
+        body.minimal-mode .search-box input:focus {
+            border-color: #111111;
+            box-shadow: none;
+            outline: 1px solid #111111;
+        }
+
+        body.minimal-mode .search-box i {
+            right: 7px;
+            color: #555555;
+        }
+
+        body.minimal-mode .refresh-btn:hover:not(:disabled),
+        body.minimal-mode .refresh-btn.toggle-btn:hover:not(:disabled),
+        body.minimal-mode .refresh-btn.toggle-btn:not(.is-active) {
+            background: #f4f4f4;
+            color: #111111;
+        }
+
+        body.minimal-mode .refresh-btn.toggle-btn.is-active {
+            background: #111111;
+            color: #ffffff;
+        }
+
+        body.minimal-mode .refresh-btn:disabled {
+            background: #eeeeee;
+            color: #777777;
+        }
+
+        body.minimal-mode .developer-panel {
+            margin: 6px 0;
+            padding: 6px 0;
+            border: 1px dotted #999999;
+            border-left: 0;
+            border-right: 0;
+            border-radius: 0;
+            background: #ffffff;
+        }
+
+        body.minimal-mode .sticky-panel .stats {
+            display: none;
+        }
+
+        body.minimal-mode .floating-actions {
+            right: 10px;
+            bottom: 10px;
+            gap: 4px;
+        }
+
+        body.minimal-mode .floating-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #777777;
+            border-radius: 0;
+            color: #222222;
+            background: #f5f5f5;
+            font-size: 13px;
+            box-shadow: none;
+            transition: none;
+        }
+
+        body.minimal-mode .floating-btn:hover {
+            transform: none;
+            background: #e8e8e8;
+            box-shadow: none;
+        }
+
+        body.minimal-mode .floating-btn.is-off {
+            background: #e8e8e8;
+            color: #777777;
+        }
+
+        body.minimal-mode .floating-btn:focus-visible {
+            outline: 1px solid #111111;
+            outline-offset: 1px;
+        }
+
+        body.minimal-mode .sticky-panel .stat-item {
+            padding: 0;
+            border-radius: 0;
+            background: transparent;
+            text-align: left;
+        }
+
+        body.minimal-mode .sticky-panel .stat-number,
+        body.minimal-mode .sticky-panel .stat-label {
+            display: inline;
+            color: #111111;
+            font-size: 13px;
+            font-weight: normal;
+        }
+
+        body.minimal-mode .sticky-panel .stat-label {
+            color: #555555;
+        }
+
+        body.minimal-mode .sticky-panel .stat-label::before {
+            content: '：';
+        }
+
+        body.minimal-mode .content-list {
+            gap: 0;
+        }
+
+        body.minimal-mode .content-item {
+            padding: 6px 0 7px;
+            border-bottom: 1px solid #dddddd;
+            border-radius: 0;
+            background: #ffffff;
+            transition: none;
+        }
+
+        body.minimal-mode .content-item:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        body.minimal-mode .content-header {
+            justify-content: flex-start;
+            gap: 10px;
+            margin-bottom: 1px;
+        }
+
+        body.minimal-mode .content-time {
+            order: -1;
+            color: #111111;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        body.minimal-mode .content-id {
+            padding: 0;
+            border-radius: 0;
+            background: transparent;
+            color: #777777;
+            font-size: 12px;
+        }
+
+        body.minimal-mode .content-title,
+        body.minimal-mode .content-text {
+            color: #111111;
+        }
+
+        body.minimal-mode .content-title {
+            margin-bottom: 1px;
+            font-size: 16px;
+            font-weight: 900;
+            line-height: 1.35;
+        }
+
+        body.minimal-mode .content-text {
+            margin-bottom: 0;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
+        body.minimal-mode .content-media {
+            gap: 4px;
+            margin: 3px 0;
+        }
+
+        body.minimal-mode .content-image {
+            max-width: 80px;
+            max-height: 80px;
+            border-radius: 0;
+        }
+
+        body.minimal-mode .content-image.is-expanded {
+            max-width: 100%;
+            max-height: none;
+            width: auto;
+            height: auto;
+        }
+
+        body.minimal-mode .content-footer {
+            padding-top: 2px;
+            border-top: 0;
+        }
+
+        body.minimal-mode .content-tags {
+            gap: 4px;
+        }
+
+        body.minimal-mode .tag {
+            padding: 0;
+            border-radius: 0;
+            background: transparent;
+            color: #555555;
+            font-size: 12px;
+        }
+
+        body.minimal-mode .tag:not(:last-child)::after {
+            content: ' / ';
+            color: #999999;
+        }
+
+        body.minimal-mode .content-actions {
+            gap: 8px;
+        }
+
+        body.minimal-mode .action-btn,
+        body.minimal-mode .source-btn,
+        body.minimal-mode .attr-btn {
+            min-width: 0;
+            padding: 0;
+            border-radius: 0;
+            background: transparent;
+            color: #555555;
+            font-size: 12px;
+        }
+
+        body.minimal-mode .action-btn:hover,
+        body.minimal-mode .source-btn:hover {
+            background: transparent;
+            color: #111111;
+        }
+
+        body.minimal-mode .source-btn {
+            max-width: 180px;
+        }
+
+        body.minimal-mode .error {
+            padding: 4px 0;
+            border-radius: 0;
+            border-bottom: 1px solid #990000;
+            background: #ffffff;
+            color: #990000;
+        }
+
+        body.minimal-mode .global-loading {
+            height: 1px;
+            background: #111111;
+        }
+
+        body.minimal-mode .load-more {
+            padding: 12px 0 18px;
+            color: #555555;
+        }
+
+        body.minimal-mode .load-more__note {
+            color: #555555;
+        }
+
+        @media (max-width: 768px) {
+            body.minimal-mode .container {
+                padding: 8px 10px;
+            }
+
+            body.minimal-mode .controls {
+                flex-direction: row;
+            }
+
+            body.minimal-mode .search-box {
+                flex: 1 1 100%;
+                max-width: none;
+            }
+
+            body.minimal-mode .filter-box {
+                width: 100%;
+            }
+
+            body.minimal-mode .content-header {
+                flex-direction: row;
+                align-items: baseline;
+                gap: 8px;
+            }
+
+            body.minimal-mode .content-footer {
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
+            }
+
+            body.minimal-mode .content-actions {
+                align-self: auto;
+                justify-content: flex-start;
+            }
+        }

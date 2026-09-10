@@ -19,7 +19,11 @@ The guiding rule is:
 
 ```mermaid
 flowchart LR
-  Browser["Browser UI<br/>index.html + scripts/"] -->|GET /api/zhibo/feed| Node["Local Node adapter<br/>server/"]
+  Browser["Browser"] -->|GET / or /legacy| Node["Local Node adapter<br/>server/create-app.js"]
+  Node -->|index.html; /legacy adds minimal-mode| Page["Page shell<br/>index.html"]
+  Page --> Browser
+
+  Browser -->|GET /api/zhibo/feed| Node
   Browser -->|GET /api/avatar| Node
 
   Browser -. deployed on Cloudflare .-> Pages["Cloudflare Pages"]
@@ -48,7 +52,9 @@ flowchart LR
 
 - feed fetching and merge logic
 - filters and rendering
-- sticky controls and stats
+- standard-mode sticky controls and stats
+- minimal-mode route state, fixed 100-item enforcement, and compact rendering rules
+- shared latest-refresh pause state for the control panel and bottom-right shortcut
 - attribute and comment modals
 - history loading
 
@@ -56,6 +62,22 @@ The public surface is intentionally small:
 
 - `createViewerCore()`
 - `init()`
+
+### Display Modes and Route Handling
+
+The viewer uses one HTML shell and two local page routes:
+
+- `/` — standard interface. The control panel may use sticky positioning and the statistics bar is available.
+- `/legacy` — minimal interface. The server reads the same `index.html` and injects `class="minimal-mode"` into the opening `<body>` tag before sending the response. This prevents the standard interface from flashing before the frontend module runs.
+
+In minimal mode, the frontend also:
+
+- uses normal document flow and clears sticky-panel state and inline height variables;
+- keeps the toolbar in normal document flow;
+- hides the statistics bar and per-item “全部属性” action;
+- enforces a fixed maximum of 100 rendered feed items and disables the item-limit control;
+- uses smaller, neutral bottom-right shortcut buttons;
+- connects the shortcut pause button and the “新数据刷新” setting to the same latest-refresh state; history pagination remains automatic.
 
 ### 3. Bootstrap
 

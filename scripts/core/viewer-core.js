@@ -14,6 +14,7 @@ export function createViewerCore() {
         const RETRY_DELAY_MS = 1200;
         const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 60000;
         const ITEM_LIMIT_COUNT = 100;
+        const MINIMAL_MODE_STORAGE_KEY = 'sina7x24-minimal-mode';
         const HISTORY_VISIBILITY_MARGIN = 220;
         const STICKY_PANEL_MAX_WIDTH = 820;
         const STICKY_PANEL_MAX_HEIGHT = 640;
@@ -38,11 +39,12 @@ export function createViewerCore() {
         let currentPage = 1;
         let isLoadingMore = false;
         let hasMorePages = true;
-        let historyAutoLoadEnabled = true;
         let showStandaloneTitle = true;
         let showStandaloneSource = true;
         let developerModeEnabled = false;
         let itemLimitEnabled = false;
+        let minimalModeEnabled = isCompactRoute() || readMinimalModePreference();
+        let itemLimitBeforeMinimalMode = null;
         let latestRefreshPaused = false;
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
@@ -66,6 +68,7 @@ export function createViewerCore() {
         const pauseLatestRefreshBtn = document.getElementById('pauseLatestRefreshBtn');
         const idOrderStatus = document.getElementById('idOrderStatus');
         const itemLimitBtn = document.getElementById('itemLimitBtn');
+        const minimalModeBtn = document.getElementById('minimalModeBtn');
         const refreshIcon = document.getElementById('refreshIcon');
         const errorMessage = document.getElementById('errorMessage');
         const totalItemsEl = document.getElementById('totalItems');
@@ -73,7 +76,7 @@ export function createViewerCore() {
         const visibleItemsEl = document.getElementById('visibleItems');
         const updatedItemsEl = document.getElementById('updatedItems');
         const scrollTopBtn = document.getElementById('scrollTopBtn');
-        const historyToggleBtn = document.getElementById('historyToggleBtn');
+        const latestRefreshToggleBtn = document.getElementById('latestRefreshToggleBtn');
         const scrollBottomBtn = document.getElementById('scrollBottomBtn');
         const globalLoading = document.getElementById('globalLoading');
         const loadMoreSentinel = document.getElementById('loadMoreSentinel');
@@ -98,9 +101,13 @@ export function createViewerCore() {
             }
 
             updateAutoRefreshStatus();
-            updateHistoryToggleButton();
             updateDeveloperModeButton();
             updateDeveloperPanelVisibility();
+            updateMinimalModeButton();
+            if (minimalModeEnabled) {
+                updateMinimalModeRoute({ replace: true });
+            }
+            applyMinimalMode();
             updateTitleModeButton();
             updateSourceModeButton();
             updateFocusFilterButton();
@@ -137,12 +144,16 @@ export function createViewerCore() {
             refreshSecondsInput.addEventListener('keydown', handleRefreshSecondsInputKeydown);
             pauseLatestRefreshBtn.addEventListener('click', toggleLatestRefreshPaused);
             itemLimitBtn.addEventListener('click', toggleItemLimit);
+            minimalModeBtn.addEventListener('click', toggleMinimalMode);
             stickyPanelToggleBtn.addEventListener('click', toggleStickyPanel);
             scrollTopBtn.addEventListener('click', scrollToTop);
-            historyToggleBtn.addEventListener('click', toggleHistoryAutoLoad);
+            latestRefreshToggleBtn.addEventListener('click', toggleLatestRefreshPaused);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
             window.addEventListener('scroll', updateStickyPanelState, { passive: true });
             window.addEventListener('resize', updateStickyPanelState);
+            if (window.addEventListener) {
+                window.addEventListener('popstate', handleMinimalModeRouteChange, false);
+            }
             if (window.visualViewport) {
                 window.visualViewport.addEventListener('resize', updateStickyPanelState);
             }
@@ -150,6 +161,103 @@ export function createViewerCore() {
         
         function sleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function readMinimalModePreference() {
+            try {
+                return window.localStorage.getItem(MINIMAL_MODE_STORAGE_KEY) === 'true';
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function saveMinimalModePreference() {
+            try {
+                window.localStorage.setItem(MINIMAL_MODE_STORAGE_KEY, String(minimalModeEnabled));
+            } catch (error) {
+                // Private browsing or blocked storage should not disable the mode.
+            }
+        }
+
+        function isCompactRoute() {
+            return window.location.pathname.replace(/\/+$/, '') === '/legacy';
+        }
+
+        function updateMinimalModeRoute({ replace = false } = {}) {
+            const nextPath = minimalModeEnabled ? '/legacy' : '/';
+
+            if (window.location.pathname === nextPath) {
+                return;
+            }
+
+            if (window.history && typeof window.history.pushState === 'function') {
+                const method = replace ? 'replaceState' : 'pushState';
+                window.history[method]({ minimalMode: minimalModeEnabled }, '', nextPath);
+                return;
+            }
+
+            window.location.href = nextPath;
+        }
+
+        function handleMinimalModeRouteChange() {
+            const routeEnabled = isCompactRoute();
+
+            if (routeEnabled === minimalModeEnabled) {
+                return;
+            }
+
+            minimalModeEnabled = routeEnabled;
+            saveMinimalModePreference();
+            applyMinimalMode();
+        }
+
+        function updateMinimalModeButton() {
+            const label = '精简';
+            const tooltip = minimalModeEnabled
+                ? '已开启精简模式；点击后恢复标准样式'
+                : '切换为类似早期互联网纯文本新闻时间线的样式';
+
+            minimalModeBtn.textContent = label;
+            minimalModeBtn.classList.toggle('is-active', minimalModeEnabled);
+            minimalModeBtn.setAttribute('title', tooltip);
+            minimalModeBtn.setAttribute('aria-label', tooltip);
+            minimalModeBtn.setAttribute('aria-pressed', String(minimalModeEnabled));
+        }
+
+        function applyMinimalMode() {
+            document.body.classList.toggle('minimal-mode', minimalModeEnabled);
+            updateMinimalModeButton();
+            syncMinimalModeItemLimit();
+
+            window.requestAnimationFrame(() => {
+                updateStickyPanelState();
+            });
+        }
+
+        function syncMinimalModeItemLimit() {
+            if (minimalModeEnabled) {
+                if (itemLimitBeforeMinimalMode === null) {
+                    itemLimitBeforeMinimalMode = itemLimitEnabled;
+                }
+
+                itemLimitEnabled = true;
+                enforceItemLimit();
+            } else if (itemLimitBeforeMinimalMode !== null) {
+                itemLimitEnabled = itemLimitBeforeMinimalMode;
+                itemLimitBeforeMinimalMode = null;
+            }
+
+            updateItemLimitButton();
+            updateStats(0, 0);
+            filterContent();
+            updateHistoryStatus();
+        }
+
+        function toggleMinimalMode() {
+            minimalModeEnabled = !minimalModeEnabled;
+            saveMinimalModePreference();
+            updateMinimalModeRoute();
+            applyMinimalMode();
         }
 
         function updateAutoRefreshStatus() {
@@ -279,6 +387,15 @@ export function createViewerCore() {
             pauseLatestRefreshBtn.setAttribute('aria-label', tooltip);
             pauseLatestRefreshBtn.setAttribute('aria-pressed', String(latestRefreshPaused));
             pauseLatestRefreshBtn.disabled = false;
+
+            const shortcutIconClass = latestRefreshPaused ? 'fa-play' : 'fa-pause';
+            const shortcutLabel = latestRefreshPaused ? '恢复新数据刷新' : '暂停新数据刷新';
+
+            latestRefreshToggleBtn.innerHTML = `<i class="fas ${shortcutIconClass}"></i>`;
+            latestRefreshToggleBtn.classList.toggle('is-off', latestRefreshPaused);
+            latestRefreshToggleBtn.setAttribute('title', shortcutLabel);
+            latestRefreshToggleBtn.setAttribute('aria-label', shortcutLabel);
+            latestRefreshToggleBtn.setAttribute('aria-pressed', String(latestRefreshPaused));
         }
 
         function toggleLatestRefreshPaused() {
@@ -304,15 +421,22 @@ export function createViewerCore() {
         }
 
         function updateItemLimitButton() {
-            const label = itemLimitEnabled ? `项目上限：${ITEM_LIMIT_COUNT}条` : '项目上限：不限';
-            const tooltip = itemLimitEnabled
+            const isLockedByMinimalMode = minimalModeEnabled;
+            const label = isLockedByMinimalMode || itemLimitEnabled
+                ? `项目上限：${ITEM_LIMIT_COUNT}条`
+                : '项目上限：不限';
+            const tooltip = isLockedByMinimalMode
+                ? `精简模式固定最多保留 ${ITEM_LIMIT_COUNT} 条项目`
+                : itemLimitEnabled
                 ? `当前最多保留 ${ITEM_LIMIT_COUNT} 条项目；新消息到来时会自动删除更旧的项目`
                 : `当前不限制项目数量；点击后改为最多保留 ${ITEM_LIMIT_COUNT} 条`;
 
             itemLimitBtn.textContent = label;
-            itemLimitBtn.classList.toggle('is-active', itemLimitEnabled);
+            itemLimitBtn.classList.toggle('is-active', itemLimitEnabled || isLockedByMinimalMode);
+            itemLimitBtn.disabled = isLockedByMinimalMode;
             itemLimitBtn.setAttribute('title', tooltip);
             itemLimitBtn.setAttribute('aria-label', tooltip);
+            itemLimitBtn.setAttribute('aria-disabled', String(isLockedByMinimalMode));
         }
 
         function shouldUseCompactStickyPanel() {
@@ -378,6 +502,16 @@ export function createViewerCore() {
         }
 
         function updateStickyPanelState() {
+            if (minimalModeEnabled) {
+                stickyPanelPinnedOpen = false;
+                stickyPanel.classList.remove('is-compact', 'is-mobile-expanded');
+                stickyPanelContent.setAttribute('aria-hidden', 'false');
+                stickyPanelToggleBtn.hidden = true;
+                stickyPanel.style.removeProperty('--sticky-panel-max-height');
+                stickyPanel.style.removeProperty('--sticky-panel-content-max-height');
+                return;
+            }
+
             const isCompactViewport = shouldUseCompactStickyPanel();
             const collapseThreshold = getStickyPanelCollapseThreshold(isCompactViewport);
 
@@ -400,7 +534,7 @@ export function createViewerCore() {
         }
 
         function toggleStickyPanel() {
-            if (!shouldUseCompactStickyPanel()) return;
+            if (minimalModeEnabled || !shouldUseCompactStickyPanel()) return;
 
             const isCompact = stickyPanel.classList.contains('is-compact');
             stickyPanelPinnedOpen = isCompact;
@@ -408,6 +542,8 @@ export function createViewerCore() {
         }
 
         function toggleItemLimit() {
+            if (minimalModeEnabled) return;
+
             itemLimitEnabled = !itemLimitEnabled;
             updateItemLimitButton();
 
@@ -420,27 +556,6 @@ export function createViewerCore() {
             updateHistoryStatus();
         }
 
-        function updateHistoryToggleButton() {
-            const iconClass = historyAutoLoadEnabled ? 'fa-pause' : 'fa-play';
-            const label = historyAutoLoadEnabled ? '暂停滚动加载历史消息' : '恢复滚动加载历史消息';
-
-            historyToggleBtn.innerHTML = `<i class="fas ${iconClass}"></i>`;
-            historyToggleBtn.classList.toggle('is-off', !historyAutoLoadEnabled);
-            historyToggleBtn.setAttribute('title', label);
-            historyToggleBtn.setAttribute('aria-label', label);
-            historyToggleBtn.setAttribute('aria-pressed', String(historyAutoLoadEnabled));
-        }
-
-        function toggleHistoryAutoLoad() {
-            historyAutoLoadEnabled = !historyAutoLoadEnabled;
-            updateHistoryToggleButton();
-            updateHistoryStatus();
-
-            if (historyAutoLoadEnabled) {
-                scheduleHistoryLoadCheck();
-            }
-        }
-
         function scrollToTop() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -448,9 +563,7 @@ export function createViewerCore() {
         function scrollToBottom() {
             window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
 
-            if (historyAutoLoadEnabled) {
-                scheduleHistoryLoadCheck();
-            }
+            scheduleHistoryLoadCheck();
         }
 
         function isHistoryLoadAreaVisible() {
@@ -463,7 +576,7 @@ export function createViewerCore() {
 
             delays.forEach(delay => {
                 window.setTimeout(() => {
-                    if (!historyAutoLoadEnabled || isFirstLoad || isLoadingMore || !hasMorePages) return;
+                    if (isFirstLoad || isLoadingMore || !hasMorePages) return;
                     if (isHistoryLoadAreaVisible()) {
                         loadOlderPage();
                     }
@@ -848,6 +961,9 @@ export function createViewerCore() {
             const sourceHtml = displayParts.source
                 ? `<span class="action-btn source-btn" title="${escapeHtml(sourceTooltip)}" aria-label="${escapeHtml(sourceTooltip)}">${escapeHtml(sourceLabel)}</span>`
                 : '';
+            const attributesHtml = minimalModeEnabled
+                ? ''
+                : '<button class="action-btn attr-btn" data-action="attrs">全部属性</button>';
             const loadedCommentCount = Array.isArray(item.comment_list?.list) ? item.comment_list.list.length : 0;
             const commentsHtml = loadedCommentCount > 0
                 ? `<button class="action-btn comment-btn" data-action="comments" title="查看评论信息" aria-label="查看评论信息">
@@ -874,7 +990,7 @@ export function createViewerCore() {
                             </button>
                             ${sourceHtml}
                             ${commentsHtml}
-                            <button class="action-btn attr-btn" data-action="attrs">全部属性</button>
+                            ${attributesHtml}
                             <button class="${buttonClass}" ${hasDocUrl ? 'data-action="open-doc"' : ''} type="button">
                                 <i class="fas fa-external-link-alt"></i> 原文
                             </button>
@@ -1612,8 +1728,6 @@ export function createViewerCore() {
                 parts.push('已到接口当前可提供的最旧内容');
             } else if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
                 parts.push(`已限制最多 ${ITEM_LIMIT_COUNT} 条`);
-            } else if (!historyAutoLoadEnabled) {
-                parts.push('已暂停下拉加载历史消息');
             }
 
             if (baseText) {
@@ -1644,7 +1758,7 @@ export function createViewerCore() {
 
         // Load older pages when scrolling down
         async function loadOlderPage() {
-            if (isFirstLoad || isLoadingMore || !hasMorePages || !historyAutoLoadEnabled) return;
+            if (isFirstLoad || isLoadingMore || !hasMorePages) return;
             if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
                 updateHistoryStatus();
                 return;
@@ -1682,7 +1796,7 @@ export function createViewerCore() {
             
             const observer = new IntersectionObserver(entries => {
                 const entry = entries[0];
-                if (entry.isIntersecting && historyAutoLoadEnabled) {
+                if (entry.isIntersecting) {
                     loadOlderPage();
                 }
             }, {
