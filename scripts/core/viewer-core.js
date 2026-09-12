@@ -70,6 +70,7 @@ export function createViewerCore() {
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
+        let modalTrigger = null;
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         // Stable DOM references owned by the page shell
         const contentList = document.getElementById('contentList');
@@ -321,6 +322,7 @@ export function createViewerCore() {
             titleModeBtn.classList.toggle('is-active', showStandaloneTitle);
             titleModeBtn.setAttribute('title', tooltip);
             titleModeBtn.setAttribute('aria-label', tooltip);
+            titleModeBtn.setAttribute('aria-pressed', String(showStandaloneTitle));
         }
 
         function toggleTitleMode() {
@@ -339,6 +341,7 @@ export function createViewerCore() {
             sourceModeBtn.classList.toggle('is-active', showStandaloneSource);
             sourceModeBtn.setAttribute('title', tooltip);
             sourceModeBtn.setAttribute('aria-label', tooltip);
+            sourceModeBtn.setAttribute('aria-pressed', String(showStandaloneSource));
         }
 
         function toggleSourceMode() {
@@ -357,6 +360,7 @@ export function createViewerCore() {
             focusFilterBtn.classList.toggle('is-active', focusFilterEnabled);
             focusFilterBtn.setAttribute('title', tooltip);
             focusFilterBtn.setAttribute('aria-label', tooltip);
+            focusFilterBtn.setAttribute('aria-pressed', String(focusFilterEnabled));
         }
 
         function toggleFocusFilter() {
@@ -1166,8 +1170,9 @@ export function createViewerCore() {
             attrTableBody.appendChild(fragment);
         }
 
-        function openAttributeModal(item) {
-            closeCommentsModal();
+        function openAttributeModal(item, trigger) {
+            closeCommentsModal(false);
+            modalTrigger = trigger;
             const displayItem = buildDisplayItem(item);
             const entries = [];
             flattenObject(displayItem, '', entries);
@@ -1185,11 +1190,16 @@ export function createViewerCore() {
 
             attrModal.classList.add('is-open');
             attrModal.setAttribute('aria-hidden', 'false');
+            attrModalClose.focus();
         }
 
-        function closeAttributeModal() {
+        function closeAttributeModal(restoreFocus = true) {
             attrModal.classList.remove('is-open');
             attrModal.setAttribute('aria-hidden', 'true');
+            if (restoreFocus) {
+                modalTrigger?.focus();
+                modalTrigger = null;
+            }
         }
 
         function renderCommentsSummary(item) {
@@ -1301,17 +1311,23 @@ export function createViewerCore() {
             commentsList.appendChild(fragment);
         }
 
-        function openCommentsModal(item) {
-            closeAttributeModal();
+        function openCommentsModal(item, trigger) {
+            closeAttributeModal(false);
+            modalTrigger = trigger;
             renderCommentsSummary(item);
             renderCommentsList(item);
             commentsModal.classList.add('is-open');
             commentsModal.setAttribute('aria-hidden', 'false');
+            commentsModalClose.focus();
         }
 
-        function closeCommentsModal() {
+        function closeCommentsModal(restoreFocus = true) {
             commentsModal.classList.remove('is-open');
             commentsModal.setAttribute('aria-hidden', 'true');
+            if (restoreFocus) {
+                modalTrigger?.focus();
+                modalTrigger = null;
+            }
         }
 
         function setupAttributeModal() {
@@ -1335,7 +1351,7 @@ export function createViewerCore() {
                     if (itemEl) {
                         const itemId = Number(itemEl.dataset.id);
                         const item = itemsById.get(itemId);
-                        if (item) openCommentsModal(item);
+                        if (item) openCommentsModal(item, commentsBtn);
                     }
                     return;
                 }
@@ -1357,7 +1373,7 @@ export function createViewerCore() {
                     if (itemEl) {
                         const itemId = Number(itemEl.dataset.id);
                         const item = itemsById.get(itemId);
-                        if (item) openAttributeModal(item);
+                        if (item) openAttributeModal(item, attrBtn);
                     }
                     return;
                 }
@@ -1373,6 +1389,19 @@ export function createViewerCore() {
             });
 
             document.addEventListener('keydown', function(event) {
+                if (event.key === 'Tab') {
+                    const modalCloseButton = attrModal.classList.contains('is-open')
+                        ? attrModalClose
+                        : commentsModal.classList.contains('is-open')
+                            ? commentsModalClose
+                            : null;
+                    if (modalCloseButton) {
+                        event.preventDefault();
+                        modalCloseButton.focus();
+                        return;
+                    }
+                }
+
                 if (event.key === 'Escape' && attrModal.classList.contains('is-open')) {
                     closeAttributeModal();
                     return;
