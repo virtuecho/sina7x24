@@ -888,10 +888,7 @@ export function createViewerCore() {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = newContent;
             
-            // Add new elements to the top of the list
-            Array.from(tempDiv.children).forEach(element => {
-                contentList.insertBefore(element, contentList.firstChild);
-            });
+            contentList.prepend(...tempDiv.children);
         }
 
         // Render older items at the bottom
