@@ -171,6 +171,7 @@ export function createViewerCore() {
             scrollTopBtn.addEventListener('click', scrollToTop);
             latestRefreshToggleBtn.addEventListener('click', toggleLatestRefreshPaused);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
+            document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('scroll', updateStickyPanelState, { passive: true });
             window.addEventListener('resize', updateStickyPanelState);
             if (window.addEventListener) {
@@ -1642,13 +1643,26 @@ export function createViewerCore() {
         }
         
         // Auto-refresh
-        function startAutoRefresh() {
-            if (refreshInterval) {
+        function stopAutoRefresh() {
+            if (refreshInterval !== null) {
                 clearInterval(refreshInterval);
             }
+            refreshInterval = null;
+        }
 
-            if (latestRefreshPaused) {
-                refreshInterval = null;
+        function handleVisibilityChange() {
+            if (document.hidden) {
+                stopAutoRefresh();
+                return;
+            }
+
+            fetchData();
+            startAutoRefresh();
+        }
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            if (latestRefreshPaused || document.hidden) {
                 return;
             }
 
