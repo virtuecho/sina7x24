@@ -99,7 +99,7 @@ export async function handleAvatarRequest(
           referer: 'https://finance.sina.com.cn/',
           origin: 'https://finance.sina.com.cn'
         },
-        redirect: 'follow'
+        redirect: 'error'
       },
       avatarTimeoutMs
     );
