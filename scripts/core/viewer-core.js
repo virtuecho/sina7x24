@@ -816,16 +816,16 @@ export function createViewerCore() {
                 } else {
                     // Update item
                     // Check for changes
-                    const hasChanges = 
+                    const hasVisibleChanges =
                         JSON.stringify(existingItem.rich_text) !== JSON.stringify(newItem.rich_text) ||
                         JSON.stringify(existingItem.docurl) !== JSON.stringify(newItem.docurl) ||
-                        JSON.stringify(existingItem.tag) !== JSON.stringify(newItem.tag);
+                        JSON.stringify(existingItem.tag) !== JSON.stringify(newItem.tag) ||
+                        JSON.stringify(existingItem.multimedia) !== JSON.stringify(newItem.multimedia) ||
+                        JSON.stringify(existingItem.comment_list) !== JSON.stringify(newItem.comment_list);
                     
-                    if (hasChanges) {
-                        // Update item properties
-                        existingItem.rich_text = newItem.rich_text;
-                        existingItem.docurl = newItem.docurl;
-                        existingItem.tag = newItem.tag;
+                    Object.assign(existingItem, newItem);
+
+                    if (hasVisibleChanges) {
                         updatedItems.push(existingItem);
                     }
                 }
