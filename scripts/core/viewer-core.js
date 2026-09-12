@@ -672,6 +672,12 @@ export function createViewerCore() {
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
             } catch (error) {
+                if (isFirstLoad) {
+                    totalItemsEl.textContent = '—';
+                    lastUpdateEl.textContent = '加载失败';
+                    visibleItemsEl.textContent = '—';
+                    updatedItemsEl.textContent = '—';
+                }
                 showError(`获取数据失败：${error.message}。请确认本地代理服务正在运行，并稍后重试。`);
             } finally {
                 isRefreshing = false;
