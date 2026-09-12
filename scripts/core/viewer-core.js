@@ -32,6 +32,7 @@ export function createViewerCore() {
         const SINA_HISTORY_PAGE_SIZE = 100;
         const REQUEST_TIMEOUT = 10000;
         const RETRY_DELAY_MS = 1200;
+        const MAX_FETCH_RETRIES = 2;
         const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 60000;
         const ITEM_LIMIT_COUNT = 100;
         const MINIMAL_MODE_STORAGE_KEY = 'sina7x24-minimal-mode';
@@ -605,7 +606,7 @@ export function createViewerCore() {
         }
 
         // Fetch JSON with timeout and configurable retries.
-        async function fetchJson(url, { page, purpose, maxRetries = Number.POSITIVE_INFINITY } = {}) {
+        async function fetchJson(url, { page, purpose, maxRetries = MAX_FETCH_RETRIES } = {}) {
             const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
             const maxAttempts = Number.isFinite(maxRetries)
                 ? Math.max(1, Math.floor(maxRetries) + 1)
