@@ -248,7 +248,7 @@ export function createViewerCore() {
             }
 
             updateItemLimitButton();
-            updateStats(0, 0);
+            updateStats();
             filterContent();
             updateHistoryStatus();
         }
@@ -551,7 +551,7 @@ export function createViewerCore() {
                 enforceItemLimit();
             }
 
-            updateStats(0, 0);
+            updateStats();
             filterContent();
             updateHistoryStatus();
         }
@@ -690,7 +690,7 @@ export function createViewerCore() {
                 const trimmedCount = enforceItemLimit();
                 
                 lastUpdateTime = new Date();
-                updateStats(addedItems.length, updatedItems.length);
+                updateStats(updatedItems.length);
                 
                 if (isFirstLoad || trimmedCount > 0 || (orderDisorderDetected && addedItems.length > 0)) {
                     filterContent();
@@ -776,21 +776,6 @@ export function createViewerCore() {
             idOrderStatus.textContent = lastIdOrderStatus.text;
             idOrderStatus.classList.toggle('is-warning', Boolean(lastIdOrderStatus.warning));
             idOrderStatus.classList.toggle('is-ok', !lastIdOrderStatus.warning && lastIdOrderStatus.text !== 'ID顺序检测：未检测');
-        }
-
-        function clearLoadedItems() {
-            allItems = [];
-            itemsById = new Map();
-            currentPage = 1;
-            hasMorePages = true;
-            isLoadingMore = false;
-            contentList.innerHTML = '';
-        }
-
-        function replaceLoadedItems(items) {
-            const normalized = normalizeItemsByIdDesc(items).map(item => ({ ...item }));
-            allItems = normalized;
-            itemsById = new Map(normalized.map(item => [item.id, item]));
         }
 
         // Merge new items into the existing list
@@ -1074,132 +1059,8 @@ export function createViewerCore() {
             return `/api/avatar?url=${encodeURIComponent(url.trim())}`;
         }
 
-        const FIELD_MEANINGS = {
-            id: '唯一条目ID',
-            zhibo_id: '直播间ID',
-            type: '内容类型代码',
-            rich_text: '正文内容（富文本）',
-            multimedia: '多媒体内容（字符串或对象）',
-            'multimedia.img_url[]': '图片URL列表',
-            commentid: '评论系统ID',
-            compere_id: '主持人/主播ID',
-            creator: '创建者账号',
-            mender: '最后编辑账号',
-            create_time: '创建时间',
-            update_time: '更新时间',
-            is_need_check: '是否需要审核',
-            check_time: '审核时间',
-            check_status: '审核状态',
-            check_user: '审核人账号',
-            is_delete: '是否删除',
-            top_value: '置顶权重/优先级',
-            is_focus: '是否焦点',
-            source_content_id: '来源内容ID',
-            anchor_image_url: '主播图片URL',
-            anchor: '主播名称',
-            ext: '扩展JSON字符串（需解析）',
-            ext_parsed: '解析后的ext对象',
-            'ext_parsed.docurl': '文档URL（来自ext）',
-            'ext_parsed.docid': '文档ID（来自ext）',
-            'ext_parsed.stocks': '关联标的列表',
-            'ext_parsed.stocks[].market': '标的市场',
-            'ext_parsed.stocks[].symbol': '标的代码',
-            'ext_parsed.stocks[].key': '标的关键词/名称',
-            'ext_parsed.stocks[].sym_party_status': '标的党派状态（推测）',
-            'ext_parsed.needPushWB': '是否推送微博',
-            'ext_parsed.needCMSLink': '是否生成CMS链接',
-            'ext_parsed.needCalender': '是否关联日历',
-            old_live_cid: '旧版内容ID',
-            tab: 'Tab名称',
-            is_repeat: '是否重复',
-            'tag[]': '标签列表',
-            'tag[].id': '标签ID',
-            'tag[].name': '标签名称',
-            like_nums: '点赞数',
-            comment_list: '评论概览',
-            'comment_list.total': '评论总数',
-            'comment_list.thread_show': '是否显示线程',
-            'comment_list.qreply': '问答回复数',
-            'comment_list.qreply_show': '问答回复显示标记',
-            'comment_list.show': '评论显示标记',
-            'comment_list.list[]': '评论列表',
-            'comment_list.list[].mid': '评论ID',
-            'comment_list.list[].comment_mid': '父评论ID',
-            'comment_list.list[].channel': '评论频道',
-            'comment_list.list[].newsid': '新闻ID',
-            'comment_list.list[].news_mid': '新闻消息ID',
-            'comment_list.list[].channel_source': '来源频道',
-            'comment_list.list[].newsid_source': '来源新闻ID',
-            'comment_list.list[].news_mid_source': '来源新闻消息ID',
-            'comment_list.list[].status': '审核状态',
-            'comment_list.list[].time': '评论时间',
-            'comment_list.list[].agree': '赞同数',
-            'comment_list.list[].score': '评分',
-            'comment_list.list[].hot': '热度',
-            'comment_list.list[].against': '反对数',
-            'comment_list.list[].length': '内容长度',
-            'comment_list.list[].rank': '排序/排名',
-            'comment_list.list[].vote': '投票数',
-            'comment_list.list[].level': '层级',
-            'comment_list.list[].parent': '父线程ID',
-            'comment_list.list[].parent_mid': '父评论MID',
-            'comment_list.list[].thread': '线程ID',
-            'comment_list.list[].thread_mid': '线程MID',
-            'comment_list.list[].uid': '用户ID',
-            'comment_list.list[].nick': '用户昵称',
-            'comment_list.list[].usertype': '用户类型',
-            'comment_list.list[].content': '评论内容',
-            'comment_list.list[].ip': 'IP地址',
-            'comment_list.list[].config': '配置字符串',
-            'comment_list.list[].profile_img': '用户头像URL',
-            'comment_list.list[].parent_uid': '父用户ID',
-            'comment_list.list[].parent_nick': '父用户昵称',
-            'comment_list.list[].parent_profile_img': '父用户头像URL',
-            'comment_list.list[].area': '用户地区',
-            'comment_list.list[].status_uid': '状态用户ID',
-            'comment_list.list[].comment_imgs': '评论图片',
-            'comment_list.list[].status_cmnt_mid': '状态评论MID',
-            'comment_list.list[].import_type': '导入类型',
-            'comment_list.list[].media_type': '媒体类型',
-            'comment_list.list[].audio': '音频URL',
-            'comment_list.list[].video': '视频URL',
-            'comment_list.list[].openid': 'OpenID',
-            'comment_list.list[].login_type': '登录类型',
-            'comment_list.list[].batch_type': '批处理类型',
-            'comment_list.list[].check_type': '检查类型',
-            'comment_list.list[].status_show': '状态显示标记',
-            'comment_list.list[].code': '状态码',
-            'comment_list.list[].layer': '层级编号',
-            'comment_list.list[].show_loc': '显示位置标记',
-            'comment_list.list[].top_desc': '置顶描述',
-            'comment_list.list[].thread2': '次级线程ID',
-            'comment_list.list[].status2': '次级状态',
-            'comment_list.list[].content_ext': '评论扩展内容',
-            'comment_list.list[].content_ext.reply': '回复数',
-            'comment_list.list[].content_ext.weibourl': '微博链接',
-            'comment_list.list[].content_ext.videoinfo': '视频信息',
-            'comment_list.list[].is_hot': '是否热门',
-            'comment_list.list[].is_top': '是否置顶',
-            'comment_list.list[].parent_new': '父级新标记',
-            'comment_list.list[].count_layer': '层级计数',
-            'comment_list.list[].did': '设备ID',
-            'comment_list.list[].is_agree': '是否赞同',
-            'comment_list.list[].has_my': '是否包含我的数据',
-            docurl: '移动端文档URL',
-            rich_text_nick_to_url: '昵称到URL映射',
-            rich_text_nick_to_routeUri: '昵称到路由URI映射',
-            compere_info: '主播/主持人信息'
-        };
-
-        function normalizePath(path) {
-            return path.replace(/\[\d+\]/g, '[]');
-        }
-
         function inferMeaning(path, value) {
-            const normalizedPath = normalizePath(path);
-            if (FIELD_MEANINGS[normalizedPath]) return FIELD_MEANINGS[normalizedPath];
-
-            const key = normalizedPath.split('.').pop();
+            const key = path.replace(/\[\d+\]/g, '[]').split('.').pop();
             if (!key) return '根节点值';
             if (/_time$/.test(key)) return '时间戳';
             if (/_id$/.test(key) || key === 'id') return '标识符';
@@ -1523,7 +1384,7 @@ export function createViewerCore() {
         }
         
         // Update stats
-        function updateStats(addedCount = 0, updatedCount = 0) {
+        function updateStats(updatedCount = 0) {
             totalItemsEl.textContent = allItems.length;
             lastUpdateEl.textContent = lastUpdateTime
                 ? lastUpdateTime.toLocaleTimeString('zh-CN', { hour12: false })

@@ -355,27 +355,6 @@ html {
             color: #1f5f46;
         }
 
-        .developer-panel__section {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(116, 144, 196, 0.2);
-        }
-
-        .developer-panel__section-title {
-            margin-bottom: 8px;
-            font-size: 13px;
-            font-weight: 700;
-            color: #2c3e50;
-        }
-
-        .developer-panel__section-toggle {
-            justify-content: space-between;
-        }
-
-        .developer-panel__field--wide {
-            grid-column: 1 / -1;
-        }
-        
         .refreshing {
             animation: rotate 1s linear infinite;
         }
@@ -783,13 +762,6 @@ html {
             font-size: 13px;
         }
         
-        .loading {
-            text-align: center;
-            padding: 30px;
-            font-size: 18px;
-            color: #777;
-        }
-
         .load-more {
             text-align: center;
             padding: 16px 0 24px;

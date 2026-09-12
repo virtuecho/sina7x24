@@ -1,16 +1,10 @@
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import express from 'express';
-import {
-  ALLOWED_IMAGE_HOST_SUFFIXES,
-  API_TIMEOUT_MS,
-  AVATAR_TIMEOUT_MS,
-  ROOT_DIR,
-  SINA_ORIGIN
-} from './config.js';
-import { registerHealthRoute } from './routes/health.js';
-import { registerZhiboProxyRoute } from './routes/zhibo-proxy.js';
-import { registerAvatarRoute } from './routes/avatar.js';
+import { handleAvatarRequest } from '../backend/core/avatar.js';
+import { handleSinaApiProxyRequest } from '../backend/core/sina.js';
+import { createWebRequestFromExpress, sendWebResponseToExpress } from './adapters/web-interop.js';
+import { ROOT_DIR } from './config.js';
 
 function createApp() {
   const app = express();
@@ -19,14 +13,20 @@ function createApp() {
   app.disable('x-powered-by');
   app.use(express.json({ limit: '256kb' }));
 
-  registerHealthRoute(app);
-  registerZhiboProxyRoute(app, {
-    sinaOrigin: SINA_ORIGIN,
-    apiTimeoutMs: API_TIMEOUT_MS
+  app.get('/healthz', (_req, res) => {
+    res.json({ ok: true });
   });
-  registerAvatarRoute(app, {
-    avatarTimeoutMs: AVATAR_TIMEOUT_MS,
-    allowedImageHostSuffixes: ALLOWED_IMAGE_HOST_SUFFIXES
+
+  app.use('/api/zhibo', async (req, res) => {
+    const request = createWebRequestFromExpress(req);
+    const response = await handleSinaApiProxyRequest(request);
+    await sendWebResponseToExpress(res, response);
+  });
+
+  app.get('/api/avatar', async (req, res) => {
+    const request = createWebRequestFromExpress(req);
+    const response = await handleAvatarRequest(request);
+    await sendWebResponseToExpress(res, response);
   });
 
   app.get('/', (_req, res) => {
