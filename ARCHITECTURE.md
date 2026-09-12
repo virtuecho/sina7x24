@@ -50,12 +50,13 @@ flowchart LR
 
 `scripts/core/viewer-core.js` owns:
 
-- feed fetching and merge logic
+- feed fetching with bounded retries, visibility-aware polling, and full-item merge logic
 - filters and rendering
-- standard-mode sticky controls and stats
+- third-party text escaping and HTTP(S)-only image and document URLs at the rendering boundary
+- standard-mode sticky controls, accessible toggle states, and loading-aware stats
 - minimal-mode route state, fixed 100-item enforcement, and compact rendering rules
 - shared latest-refresh pause state for the control panel and bottom-right shortcut
-- attribute and comment modals
+- attribute and comment modals with keyboard focus entry, containment, and restoration
 - history loading
 
 The public surface is intentionally small:
@@ -108,6 +109,8 @@ These modules use standard Web APIs:
 - `AbortController`
 
 That keeps the core portable across local Node and Cloudflare.
+
+Avatar requests validate the initial HTTP(S) URL against the image-host allowlist and use `redirect: 'error'`, so a validated host cannot redirect the proxy to an unchecked destination.
 
 ### Local Node Adapter
 
