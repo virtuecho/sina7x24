@@ -54,6 +54,7 @@ flowchart LR
 - filters and rendering
 - third-party text escaping and HTTP(S)-only image and document URLs at the rendering boundary
 - standard-mode sticky controls, accessible toggle states, and loading-aware stats
+- compact, wrapping tag and action layout for standard-mode cards on narrow viewports
 - minimal-mode route state, fixed 100-item enforcement, and compact rendering rules
 - shared latest-refresh pause state for the control panel and bottom-right shortcut
 - attribute and comment modals with keyboard focus entry, containment, and restoration

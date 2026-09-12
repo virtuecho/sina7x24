@@ -953,6 +953,34 @@ html {
                 justify-content: space-between;
             }
 
+            body:not(.minimal-mode) .content-footer {
+                gap: 8px;
+            }
+
+            body:not(.minimal-mode) .content-tags {
+                gap: 6px;
+            }
+
+            body:not(.minimal-mode) .tag {
+                padding: 3px 7px;
+            }
+
+            body:not(.minimal-mode) .content-actions {
+                align-self: flex-start;
+                justify-content: flex-start;
+                gap: 6px;
+            }
+
+            body:not(.minimal-mode) .action-btn {
+                min-height: 32px;
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+
+            body:not(.minimal-mode) .copy-btn {
+                min-width: 0;
+            }
+
             .floating-actions {
                 right: 14px;
                 bottom: 14px;
