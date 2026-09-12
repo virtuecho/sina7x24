@@ -1,3 +1,23 @@
+export function escapeHtml(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+export function getSafeHttpUrl(value) {
+    if (typeof value !== 'string' || value.trim() === '') return null;
+
+    try {
+        const url = new URL(value, window.location.href);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+    } catch {
+        return null;
+    }
+}
+
 export function createViewerCore() {
         // Viewer core owns the page itself:
         // feed fetching, state merge, filters, rendering, stats, and built-in modals.
@@ -907,15 +927,6 @@ export function createViewerCore() {
 
         const DEFAULT_COMMENT_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%23e2e8f0"/><circle cx="22" cy="17" r="8" fill="%2394a3b8"/><path d="M9 37c2.8-7 9.4-10 13-10s10.2 3 13 10" fill="%2394a3b8"/></svg>';
 
-        function escapeHtml(text) {
-            return String(text ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-        
         // Create a single content item
         function createContentItem(item) {
             const docUrl = getDocUrl(item);
@@ -928,18 +939,20 @@ export function createViewerCore() {
             const titleClass = isHighlight ? 'content-title highlight-text' : 'content-title';
             const displayParts = getDisplayTextParts(item.rich_text);
             
-            const imageUrls = Array.isArray(item.multimedia?.img_url) ? item.multimedia.img_url : [];
+            const imageUrls = (Array.isArray(item.multimedia?.img_url) ? item.multimedia.img_url : [])
+                .map(getSafeHttpUrl)
+                .filter(Boolean);
             const mediaHtml = imageUrls.length > 0
                 ? `<div class="content-media">
-                        ${imageUrls.map(url => `<img class="content-image" src="${url}" alt="">`).join('')}
+                        ${imageUrls.map(url => `<img class="content-image" src="${escapeHtml(url)}" alt="">`).join('')}
                    </div>`
                 : '';
 
             const titleHtml = displayParts.title
-                ? `<div class="${titleClass}">${displayParts.title}</div>`
+                ? `<div class="${titleClass}">${escapeHtml(displayParts.title)}</div>`
                 : '';
             const bodyHtml = displayParts.body
-                ? `<div class="${textClass}">${displayParts.body}</div>`
+                ? `<div class="${textClass}">${escapeHtml(displayParts.body)}</div>`
                 : '';
             const sourceLabel = displayParts.source ? `来源：${displayParts.source}` : '';
             const sourceTooltip = displayParts.source ? `识别出的来源：${displayParts.source}` : '';
@@ -957,17 +970,17 @@ export function createViewerCore() {
                 : '';
             
             return `
-                <div class="content-item" data-id="${item.id}">
+                <div class="content-item" data-id="${escapeHtml(item.id)}">
                     <div class="content-header">
-                        <span class="content-id">ID: ${item.id}</span>
-                        <span class="content-time">${formatTime(item.create_time)}</span>
+                        <span class="content-id">ID: ${escapeHtml(item.id)}</span>
+                        <span class="content-time">${escapeHtml(formatTime(item.create_time))}</span>
                     </div>
                     ${titleHtml}
                     ${bodyHtml}
                     ${mediaHtml}
                     <div class="content-footer">
                         <div class="content-tags">
-                            ${item.tag.map(t => `<span class="tag">${t.name}</span>`).join('')}
+                            ${item.tag.map(t => `<span class="tag">${escapeHtml(t.name)}</span>`).join('')}
                         </div>
                         <div class="content-actions">
                             <button class="action-btn copy-btn" data-action="copy" title="复制这条新闻原文" aria-label="复制这条新闻原文">
@@ -987,8 +1000,9 @@ export function createViewerCore() {
         
         // Open document URL
         function openDocUrl(url) {
-            if (url) {
-                window.open(url, '_blank');
+            const safeUrl = getSafeHttpUrl(url);
+            if (safeUrl) {
+                window.open(safeUrl, '_blank', 'noopener');
             }
         }
 
@@ -1038,17 +1052,14 @@ export function createViewerCore() {
         
         // Get document URL (convert mobile link to PC link)
         function getDocUrl(item) {
-            // Prefer item.docurl
-            if (item.docurl && item.docurl.trim() !== '') {
-                let url = item.docurl;
-                // Replace domain and path format
-                url = url.replace('//finance.sina.cn', '//finance.sina.com.cn')
-                        .replace('/detail-', '/doc-')
-                        .replace('.d.html', '.shtml');
-                return url;
-            }
-            
-            return null;
+            if (typeof item.docurl !== 'string' || item.docurl.trim() === '') return null;
+
+            return getSafeHttpUrl(
+                item.docurl
+                    .replace('//finance.sina.cn', '//finance.sina.com.cn')
+                    .replace('/detail-', '/doc-')
+                    .replace('.d.html', '.shtml')
+            );
         }
 
         function getCommentAvatarUrl(url) {
