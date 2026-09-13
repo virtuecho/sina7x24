@@ -19,7 +19,7 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 - Render third-party feed text as text and allow only HTTP(S) image and document URLs
 - Provide labelled controls, toggle states, and keyboard-safe modal focus handling
 - Show loading or failure states instead of zero-valued statistics before the first successful response
-- Open `/legacy` for a compact, text-first timeline with a 100-item default limit; it omits per-item comments and original links, and its bottom unlock lasts only until leaving minimal mode
+- Open `/legacy` for a compact, text-first timeline with a 100-item default limit; it omits per-item comments and original links, and its bottom control removes the limit and unlocks item-limit adjustment until leaving minimal mode or refreshing
 - Keep the `/legacy` toolbar in normal document flow
 - Use the same latest-refresh pause state in the control panel and the bottom-right shortcut button; history pagination remains automatic
 - Proxy avatars through an allowlisted image route that rejects redirects

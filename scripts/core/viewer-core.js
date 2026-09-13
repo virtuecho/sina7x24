@@ -467,17 +467,17 @@ export function createViewerCore() {
             const tooltip = isLockedByMinimalMode
                 ? `精简模式固定最多保留 ${ITEM_LIMIT_COUNT} 条项目`
                 : minimalModeEnabled
-                ? '精简模式已解除项目上限；离开后会重新锁定'
+                ? '精简模式项目上限已解锁；点击切换限制'
                 : itemLimitEnabled
                 ? `当前最多保留 ${ITEM_LIMIT_COUNT} 条项目；新消息到来时会自动删除更旧的项目`
                 : `当前不限制项目数量；点击后改为最多保留 ${ITEM_LIMIT_COUNT} 条`;
 
             itemLimitBtn.textContent = label;
             itemLimitBtn.classList.toggle('is-active', itemLimitEnabled || isLockedByMinimalMode);
-            itemLimitBtn.disabled = minimalModeEnabled;
+            itemLimitBtn.disabled = isLockedByMinimalMode;
             itemLimitBtn.setAttribute('title', tooltip);
             itemLimitBtn.setAttribute('aria-label', tooltip);
-            itemLimitBtn.setAttribute('aria-disabled', String(minimalModeEnabled));
+            itemLimitBtn.setAttribute('aria-disabled', String(isLockedByMinimalMode));
         }
 
         function shouldUseCompactStickyPanel() {
@@ -586,7 +586,7 @@ export function createViewerCore() {
         }
 
         function toggleItemLimit() {
-            if (minimalModeEnabled) return;
+            if (minimalModeEnabled && !minimalModeItemLimitUnlocked) return;
 
             itemLimitEnabled = !itemLimitEnabled;
             updateItemLimitButton();
