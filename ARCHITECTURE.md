@@ -26,7 +26,8 @@ flowchart LR
   Browser -->|GET /api/zhibo/feed| Node
   Browser -->|GET /api/avatar| Node
 
-  Browser -. deployed on Cloudflare .-> Pages["Cloudflare Pages"]
+  Browser -. static page .-> Pages["Cloudflare Pages"]
+  Pages -->|index.html| Page
   Pages -->|/api/*| Functions["Pages Functions adapter<br/>functions/api/"]
 
   Node --> Core["Shared backend core<br/>backend/core/"]
@@ -50,36 +51,22 @@ flowchart LR
 
 `scripts/core/viewer-core.js` owns:
 
-- feed fetching with bounded retries, visibility-aware polling, and full-item merge logic
-- filters and rendering
-- third-party text escaping and HTTP(S)-only image and document URLs at the rendering boundary
-- standard-mode sticky controls that stay open during a search, accessible toggle states, and loading-aware stats
-- compact, wrapping tag and action layout for standard-mode cards on narrow viewports
-- minimal-mode route state, fixed 100-item enforcement, and compact rendering rules
-- shared latest-refresh pause state for the control panel and bottom-right shortcut
-- attribute and comment modals with keyboard focus entry, containment, and restoration
-- history loading
-
-The public surface is intentionally small:
-
-- `createViewerCore()`
-- `init()`
+- feed fetching, merging, filtering, rendering, and history loading
+- third-party text escaping and HTTP(S)-only image and document URLs
+- standard and minimal display modes, controls, and statistics
+- attribute and comment modals
 
 ### Display Modes and Route Handling
 
-The viewer uses one HTML shell and two local page routes:
+The viewer uses one HTML shell and two page routes:
 
 - `/` — standard interface. The control panel may use sticky positioning and the statistics bar is available.
-- `/legacy` — minimal interface. `index.html` sets `minimal-mode` synchronously while parsing the opening `<body>` tag, before page content and the frontend module load. This prevents a standard-interface flash for both the local server and static Pages deployments.
+- `/legacy` — minimal interface.
 
 In minimal mode, the frontend also:
 
-- uses normal document flow and clears sticky-panel state and inline height variables;
-- keeps the toolbar in normal document flow;
-- hides the statistics bar and per-item “全部属性”, “评论”, and “原文” actions;
-- enforces a 100-item default limit, with a bottom control that removes the limit and unlocks item-limit adjustment until leaving minimal mode or refreshing;
-- uses smaller, neutral bottom-right shortcut buttons;
-- connects the shortcut pause button and the “新数据刷新” setting to the same latest-refresh state; history pagination remains automatic.
+- keeps the toolbar in normal document flow and hides the statistics bar and per-item “全部属性”, “评论”, and “原文” actions;
+- enforces a 100-item default limit, with a bottom control that removes the limit and unlocks item-limit adjustment until leaving minimal mode or refreshing.
 
 ### 3. Bootstrap
 
@@ -100,19 +87,6 @@ In minimal mode, the frontend also:
 - `sina.js` — Sina API target building and proxy handler
 - `avatar.js` — avatar URL validation and image proxy handler
 
-These modules use standard Web APIs:
-
-- `Request`
-- `Response`
-- `fetch`
-- `Headers`
-- `URL`
-- `AbortController`
-
-That keeps the core portable across local Node and Cloudflare.
-
-Avatar requests validate the initial HTTP(S) URL against the image-host allowlist and use `redirect: 'error'`, so a validated host cannot redirect the proxy to an unchecked destination.
-
 ### Local Node Adapter
 
 The local Node server is structured like this:
@@ -121,9 +95,6 @@ The local Node server is structured like this:
 - `server/config.js` — local runtime config and root paths
 - `server/adapters/web-interop.js` — Express <-> Web Request/Response bridge
 - `server/create-app.js` — app composition
-- `server/routes/health.js` — local-only health check
-- `server/routes/zhibo-proxy.js` — thin adapter for the shared Sina handler
-- `server/routes/avatar.js` — thin adapter for the shared avatar handler
 
 ### Cloudflare Adapter
 
@@ -133,25 +104,6 @@ The Cloudflare side stays intentionally thin:
 - `functions/api/avatar.js`
 
 Each file delegates into `backend/core/` with Cloudflare request objects and shared defaults.
-
-## Backend Request Flow
-
-```mermaid
-flowchart TD
-  Request["Incoming Request"] --> Adapter{"Runtime adapter"}
-  Adapter -->|"Express route"| NodeAdapter["server/routes/*.js"]
-  Adapter -->|"Pages Function"| CfAdapter["functions/api/*.js"]
-
-  NodeAdapter --> Bridge["server/adapters/web-interop.js"]
-  Bridge --> CoreHandler["backend/core handler"]
-  CfAdapter --> CoreHandler
-
-  CoreHandler --> Validate["Validate path / query / allowlist"]
-  Validate --> Fetch["fetch upstream with timeout"]
-  Fetch --> Response["Return Web Response"]
-  Response --> NodeAdapter
-  Response --> CfAdapter
-```
 
 ## Data Flow
 
@@ -169,11 +121,3 @@ sequenceDiagram
   Core-->>Adapter: Response
   Adapter-->>Browser: JSON feed
 ```
-
-## Why This Layout Is Easier To Maintain
-
-This layout gives three practical benefits:
-
-- the same backend rules only live in one place
-- local Node and Cloudflare stay supported without duplicated proxy logic
-- the frontend stays focused on viewing and filtering feed items
