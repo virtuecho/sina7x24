@@ -15,6 +15,9 @@
     <link rel="stylesheet" href="./styles/main.css">
 </head>
 <body>
+    <script>
+        if (location.pathname.replace(/\/+$/, '') === '/legacy') document.body.classList.add('minimal-mode');
+    </script>
     <div class="global-loading" id="globalLoading"></div>
 
     <header>

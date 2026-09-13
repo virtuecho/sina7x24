@@ -20,7 +20,7 @@ The guiding rule is:
 ```mermaid
 flowchart LR
   Browser["Browser"] -->|GET / or /legacy| Node["Local Node adapter<br/>server/create-app.js"]
-  Node -->|index.html; /legacy adds minimal-mode| Page["Page shell<br/>index.html"]
+  Node -->|index.html| Page["Page shell<br/>index.html"]
   Page --> Browser
 
   Browser -->|GET /api/zhibo/feed| Node
@@ -70,7 +70,7 @@ The public surface is intentionally small:
 The viewer uses one HTML shell and two local page routes:
 
 - `/` — standard interface. The control panel may use sticky positioning and the statistics bar is available.
-- `/legacy` — minimal interface. The server reads the same `index.html` and injects `class="minimal-mode"` into the opening `<body>` tag before sending the response. This prevents the standard interface from flashing before the frontend module runs.
+- `/legacy` — minimal interface. `index.html` sets `minimal-mode` synchronously while parsing the opening `<body>` tag, before page content and the frontend module load. This prevents a standard-interface flash for both the local server and static Pages deployments.
 
 In minimal mode, the frontend also:
 

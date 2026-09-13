@@ -49,7 +49,7 @@ npm run dev
 
 Open `http://127.0.0.1:3000`.
 
-Open `http://127.0.0.1:3000/legacy` for the minimal interface. The local server adds the minimal-mode class to the HTML response for this route before the browser renders the page, preventing a standard-interface flash on the first paint.
+Open `http://127.0.0.1:3000/legacy` for the minimal interface. The page shell adds the minimal-mode class while parsing the opening `<body>` tag, preventing a standard-interface flash on the first paint in both local and static deployments.
 
 For a normal local run without watch mode:
 
