@@ -150,6 +150,10 @@ export function createViewerCore() {
                 currentSearch = this.value.toLowerCase();
                 filterContent();
             });
+            searchInput.addEventListener('focus', updateStickyPanelState);
+            searchInput.addEventListener('blur', function() {
+                window.requestAnimationFrame(updateStickyPanelState);
+            });
             
             typeFilter.addEventListener('change', function() {
                 currentType = this.value;
@@ -178,7 +182,7 @@ export function createViewerCore() {
                 window.addEventListener('popstate', handleMinimalModeRouteChange, false);
             }
             if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', updateStickyPanelState);
+                window.visualViewport.addEventListener('resize', updateStickyPanelScrollableLayout);
             }
         }
         
@@ -540,17 +544,20 @@ export function createViewerCore() {
 
             const isCompactViewport = shouldUseCompactStickyPanel();
             const collapseThreshold = getStickyPanelCollapseThreshold(isCompactViewport);
+            const isSearching = document.activeElement === searchInput;
 
-            if (!isCompactViewport || window.scrollY <= collapseThreshold) {
+            if (!isCompactViewport || (window.scrollY <= collapseThreshold && !isSearching)) {
                 stickyPanelPinnedOpen = false;
             }
 
+            const keepStickyPanelOpen = stickyPanelPinnedOpen || isSearching;
+
             const isCompact = isCompactViewport
                 && window.scrollY > collapseThreshold
-                && !stickyPanelPinnedOpen;
+                && !keepStickyPanelOpen;
             const isMobileExpanded = isCompactViewport
                 && window.scrollY > collapseThreshold
-                && stickyPanelPinnedOpen;
+                && keepStickyPanelOpen;
 
             stickyPanel.classList.toggle('is-compact', isCompact);
             stickyPanel.classList.toggle('is-mobile-expanded', isMobileExpanded);

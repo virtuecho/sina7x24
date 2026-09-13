@@ -13,6 +13,7 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 - Inspect raw attributes and comment data in dedicated modals in the standard interface
 - Auto-refresh the latest feed with at most two retries, pause polling in background tabs, and refresh immediately on return
 - Toggle item limits and latest-refresh behavior from the standard control panel
+- Keep the standard-mode control panel open while a search field is focused, preventing narrow-screen layout jumps
 - Keep standard-mode card tags and actions compact and content-sized on narrow viewports, wrapping only when needed
 - Merge the newest data into existing feed items and refresh their visible content when it changes
 - Render third-party feed text as text and allow only HTTP(S) image and document URLs
