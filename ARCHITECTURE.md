@@ -77,7 +77,7 @@ In minimal mode, the frontend also:
 - uses normal document flow and clears sticky-panel state and inline height variables;
 - keeps the toolbar in normal document flow;
 - hides the statistics bar and per-item “全部属性” action;
-- enforces a fixed maximum of 100 rendered feed items and disables the item-limit control;
+- enforces a 100-item default limit, with a bottom unlock that resets after leaving minimal mode;
 - uses smaller, neutral bottom-right shortcut buttons;
 - connects the shortcut pause button and the “新数据刷新” setting to the same latest-refresh state; history pagination remains automatic.
 

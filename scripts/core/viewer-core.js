@@ -66,6 +66,7 @@ export function createViewerCore() {
         let itemLimitEnabled = false;
         let minimalModeEnabled = isCompactRoute() || readMinimalModePreference();
         let itemLimitBeforeMinimalMode = null;
+        let minimalModeItemLimitUnlocked = false;
         let latestRefreshPaused = false;
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
@@ -103,6 +104,7 @@ export function createViewerCore() {
         const globalLoading = document.getElementById('globalLoading');
         const loadMoreSentinel = document.getElementById('loadMoreSentinel');
         const loadMoreStatus = document.getElementById('loadMoreStatus');
+        const minimalItemLimitUnlockBtn = document.getElementById('minimalItemLimitUnlockBtn');
         const attrModal = document.getElementById('attrModal');
         const attrModalBackdrop = document.getElementById('attrModalBackdrop');
         const attrModalClose = document.getElementById('attrModalClose');
@@ -171,6 +173,7 @@ export function createViewerCore() {
             pauseLatestRefreshBtn.addEventListener('click', toggleLatestRefreshPaused);
             itemLimitBtn.addEventListener('click', toggleItemLimit);
             minimalModeBtn.addEventListener('click', toggleMinimalMode);
+            minimalItemLimitUnlockBtn.addEventListener('click', unlockMinimalModeItemLimit);
             stickyPanelToggleBtn.addEventListener('click', toggleStickyPanel);
             scrollTopBtn.addEventListener('click', scrollToTop);
             latestRefreshToggleBtn.addEventListener('click', toggleLatestRefreshPaused);
@@ -267,11 +270,17 @@ export function createViewerCore() {
                     itemLimitBeforeMinimalMode = itemLimitEnabled;
                 }
 
-                itemLimitEnabled = true;
-                enforceItemLimit();
-            } else if (itemLimitBeforeMinimalMode !== null) {
-                itemLimitEnabled = itemLimitBeforeMinimalMode;
-                itemLimitBeforeMinimalMode = null;
+                if (!minimalModeItemLimitUnlocked) {
+                    itemLimitEnabled = true;
+                    enforceItemLimit();
+                }
+            } else {
+                if (itemLimitBeforeMinimalMode !== null) {
+                    itemLimitEnabled = itemLimitBeforeMinimalMode;
+                    itemLimitBeforeMinimalMode = null;
+                }
+
+                minimalModeItemLimitUnlocked = false;
             }
 
             updateItemLimitButton();
@@ -451,22 +460,24 @@ export function createViewerCore() {
         }
 
         function updateItemLimitButton() {
-            const isLockedByMinimalMode = minimalModeEnabled;
+            const isLockedByMinimalMode = minimalModeEnabled && !minimalModeItemLimitUnlocked;
             const label = isLockedByMinimalMode || itemLimitEnabled
                 ? `项目上限：${ITEM_LIMIT_COUNT}条`
                 : '项目上限：不限';
             const tooltip = isLockedByMinimalMode
                 ? `精简模式固定最多保留 ${ITEM_LIMIT_COUNT} 条项目`
+                : minimalModeEnabled
+                ? '精简模式已解除项目上限；离开后会重新锁定'
                 : itemLimitEnabled
                 ? `当前最多保留 ${ITEM_LIMIT_COUNT} 条项目；新消息到来时会自动删除更旧的项目`
                 : `当前不限制项目数量；点击后改为最多保留 ${ITEM_LIMIT_COUNT} 条`;
 
             itemLimitBtn.textContent = label;
             itemLimitBtn.classList.toggle('is-active', itemLimitEnabled || isLockedByMinimalMode);
-            itemLimitBtn.disabled = isLockedByMinimalMode;
+            itemLimitBtn.disabled = minimalModeEnabled;
             itemLimitBtn.setAttribute('title', tooltip);
             itemLimitBtn.setAttribute('aria-label', tooltip);
-            itemLimitBtn.setAttribute('aria-disabled', String(isLockedByMinimalMode));
+            itemLimitBtn.setAttribute('aria-disabled', String(minimalModeEnabled));
         }
 
         function shouldUseCompactStickyPanel() {
@@ -587,6 +598,18 @@ export function createViewerCore() {
             updateStats();
             filterContent();
             updateHistoryStatus();
+        }
+
+        function unlockMinimalModeItemLimit() {
+            if (!minimalModeEnabled || minimalModeItemLimitUnlocked) return;
+
+            minimalModeItemLimitUnlocked = true;
+            itemLimitEnabled = false;
+            updateItemLimitButton();
+            updateStats();
+            filterContent();
+            updateHistoryStatus();
+            loadOlderPage();
         }
 
         function scrollToTop() {
@@ -1630,6 +1653,11 @@ export function createViewerCore() {
         }
 
         function updateHistoryStatus({ loading = false, exhausted = false, error = '' } = {}) {
+            const canUnlockMinimalItemLimit = minimalModeEnabled
+                && !minimalModeItemLimitUnlocked
+                && allItems.length >= ITEM_LIMIT_COUNT;
+            minimalItemLimitUnlockBtn.hidden = !canUnlockMinimalItemLimit;
+
             const baseText = getHistoryStatusText();
             const parts = [];
 

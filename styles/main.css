@@ -796,6 +796,10 @@ html {
             color: #8a94a6;
             line-height: 1.4;
         }
+
+        .load-more__unlock[hidden] {
+            display: none;
+        }
         
         .error {
             background-color: #ffebee;
