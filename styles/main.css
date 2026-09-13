@@ -839,8 +839,8 @@ html {
         
         .floating-actions {
             position: fixed;
-            right: 24px;
-            bottom: 24px;
+            right: calc(24px + env(safe-area-inset-right, 0px));
+            bottom: calc(24px + env(safe-area-inset-bottom, 0px));
             z-index: 1300;
             display: flex;
             flex-direction: column;
@@ -986,8 +986,8 @@ html {
             }
 
             .floating-actions {
-                right: 14px;
-                bottom: 14px;
+                right: calc(14px + env(safe-area-inset-right, 0px));
+                bottom: calc(14px + env(safe-area-inset-bottom, 0px));
             }
 
             .floating-btn {
@@ -1156,8 +1156,8 @@ html {
         }
 
         body.minimal-mode .floating-actions {
-            right: 10px;
-            bottom: 10px;
+            right: calc(10px + env(safe-area-inset-right, 0px));
+            bottom: calc(10px + env(safe-area-inset-bottom, 0px));
             gap: 4px;
         }
 

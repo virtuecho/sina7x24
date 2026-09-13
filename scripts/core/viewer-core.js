@@ -67,7 +67,7 @@ export function createViewerCore() {
         let minimalModeEnabled = isCompactRoute() || readMinimalModePreference();
         let itemLimitBeforeMinimalMode = null;
         let minimalModeItemLimitUnlocked = false;
-        let latestRefreshPaused = false;
+        let refreshPaused = false;
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
@@ -135,7 +135,7 @@ export function createViewerCore() {
             updateTitleModeButton();
             updateSourceModeButton();
             updateFocusFilterButton();
-            updateLatestRefreshButton();
+            updateRefreshControls();
             updateItemLimitButton();
             fetchData();
             setupEventListeners();
@@ -170,13 +170,13 @@ export function createViewerCore() {
             sourceModeBtn.addEventListener('click', toggleSourceMode);
             applyRefreshSecondsBtn.addEventListener('click', applyAutoRefreshInterval);
             refreshSecondsInput.addEventListener('keydown', handleRefreshSecondsInputKeydown);
-            pauseLatestRefreshBtn.addEventListener('click', toggleLatestRefreshPaused);
+            pauseLatestRefreshBtn.addEventListener('click', toggleRefreshPaused);
             itemLimitBtn.addEventListener('click', toggleItemLimit);
             minimalModeBtn.addEventListener('click', toggleMinimalMode);
             minimalItemLimitUnlockBtn.addEventListener('click', unlockMinimalModeItemLimit);
             stickyPanelToggleBtn.addEventListener('click', toggleStickyPanel);
             scrollTopBtn.addEventListener('click', scrollToTop);
-            latestRefreshToggleBtn.addEventListener('click', toggleLatestRefreshPaused);
+            latestRefreshToggleBtn.addEventListener('click', toggleRefreshPaused);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
             document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('scroll', updateStickyPanelState, { passive: true });
@@ -414,44 +414,46 @@ export function createViewerCore() {
             }
         }
 
-        function updateLatestRefreshButton() {
-            const label = latestRefreshPaused ? '新数据刷新：停' : '新数据刷新：开';
-            const tooltip = latestRefreshPaused
-                ? '当前已暂停新数据自动刷新和手动刷新；点击恢复'
-                : '当前允许新数据自动刷新和手动刷新；点击暂停';
+        function updateRefreshControls() {
+            const label = refreshPaused ? '数据刷新：停' : '数据刷新：开';
+            const tooltip = refreshPaused
+                ? '当前已暂停新数据与历史消息加载；点击恢复'
+                : '当前允许新数据与历史消息加载；点击暂停';
 
             pauseLatestRefreshBtn.textContent = label;
-            pauseLatestRefreshBtn.classList.toggle('is-active', latestRefreshPaused);
+            pauseLatestRefreshBtn.classList.toggle('is-active', refreshPaused);
             pauseLatestRefreshBtn.setAttribute('title', tooltip);
             pauseLatestRefreshBtn.setAttribute('aria-label', tooltip);
-            pauseLatestRefreshBtn.setAttribute('aria-pressed', String(latestRefreshPaused));
+            pauseLatestRefreshBtn.setAttribute('aria-pressed', String(refreshPaused));
             pauseLatestRefreshBtn.disabled = false;
 
-            const shortcutIconClass = latestRefreshPaused ? 'fa-play' : 'fa-pause';
-            const shortcutLabel = latestRefreshPaused ? '恢复新数据刷新' : '暂停新数据刷新';
+            const shortcutIconClass = refreshPaused ? 'fa-play' : 'fa-pause';
+            const shortcutLabel = refreshPaused ? '恢复数据刷新' : '暂停数据刷新';
 
             latestRefreshToggleBtn.innerHTML = `<i class="fas ${shortcutIconClass}"></i>`;
-            latestRefreshToggleBtn.classList.toggle('is-off', latestRefreshPaused);
+            latestRefreshToggleBtn.classList.toggle('is-off', refreshPaused);
             latestRefreshToggleBtn.setAttribute('title', shortcutLabel);
             latestRefreshToggleBtn.setAttribute('aria-label', shortcutLabel);
-            latestRefreshToggleBtn.setAttribute('aria-pressed', String(latestRefreshPaused));
+            latestRefreshToggleBtn.setAttribute('aria-pressed', String(refreshPaused));
         }
 
-        function toggleLatestRefreshPaused() {
-            latestRefreshPaused = !latestRefreshPaused;
-            updateLatestRefreshButton();
+        function toggleRefreshPaused() {
+            refreshPaused = !refreshPaused;
+            updateRefreshControls();
             updateRefreshButtonAvailability();
+            updateHistoryStatus();
             startAutoRefresh();
 
-            if (!latestRefreshPaused) {
+            if (!refreshPaused) {
                 fetchData();
+                scheduleHistoryLoadCheck();
             }
         }
 
         function updateRefreshButtonAvailability() {
-            const isDisabled = isRefreshing || latestRefreshPaused;
-            const tooltip = latestRefreshPaused
-                ? '更多设置中已暂停新数据刷新'
+            const isDisabled = isRefreshing || refreshPaused;
+            const tooltip = refreshPaused
+                ? '数据刷新已暂停'
                 : '立即拉取最新消息';
 
             refreshBtn.disabled = isDisabled;
@@ -632,7 +634,7 @@ export function createViewerCore() {
 
             delays.forEach(delay => {
                 window.setTimeout(() => {
-                    if (isFirstLoad || isLoadingMore || !hasMorePages) return;
+                    if (refreshPaused || isFirstLoad || isLoadingMore || !hasMorePages) return;
                     if (isHistoryLoadAreaVisible()) {
                         loadOlderPage();
                     }
@@ -689,7 +691,7 @@ export function createViewerCore() {
         
         // Fetch data
         async function fetchData() {
-            if (isRefreshing || latestRefreshPaused) return;
+            if (isRefreshing || refreshPaused) return;
 
             try {
                 isRefreshing = true;
@@ -1669,6 +1671,8 @@ export function createViewerCore() {
                 parts.push('正在加载更早消息...');
             } else if (exhausted) {
                 parts.push('已到接口当前可提供的最旧内容');
+            } else if (refreshPaused) {
+                parts.push('数据刷新已暂停');
             } else if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
                 parts.push(`已限制最多 ${ITEM_LIMIT_COUNT} 条`);
             }
@@ -1705,7 +1709,7 @@ export function createViewerCore() {
 
         function startAutoRefresh() {
             stopAutoRefresh();
-            if (latestRefreshPaused || document.hidden) {
+            if (refreshPaused || document.hidden) {
                 return;
             }
 
@@ -1714,7 +1718,7 @@ export function createViewerCore() {
 
         // Load older pages when scrolling down
         async function loadOlderPage() {
-            if (isFirstLoad || isLoadingMore || !hasMorePages) return;
+            if (refreshPaused || isFirstLoad || isLoadingMore || !hasMorePages) return;
             if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
                 updateHistoryStatus();
                 return;
