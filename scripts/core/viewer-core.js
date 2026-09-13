@@ -968,7 +968,7 @@ export function createViewerCore() {
 
         // Create a single content item
         function createContentItem(item) {
-            const docUrl = getDocUrl(item);
+            const docUrl = minimalModeEnabled ? '' : getDocUrl(item);
             const hasDocUrl = Boolean(docUrl);
             const buttonClass = hasDocUrl ? 'action-btn' : 'action-btn disabled';
             
@@ -1001,12 +1001,16 @@ export function createViewerCore() {
             const attributesHtml = minimalModeEnabled
                 ? ''
                 : '<button class="action-btn attr-btn" data-action="attrs">全部属性</button>';
-            const loadedCommentCount = Array.isArray(item.comment_list?.list) ? item.comment_list.list.length : 0;
-            const commentsHtml = loadedCommentCount > 0
+            const commentsHtml = !minimalModeEnabled && Array.isArray(item.comment_list?.list) && item.comment_list.list.length > 0
                 ? `<button class="action-btn comment-btn" data-action="comments" title="查看评论信息" aria-label="查看评论信息">
                                 <i class="fas fa-comments"></i> 评论
                             </button>`
                 : '';
+            const docHtml = minimalModeEnabled
+                ? ''
+                : `<button class="${buttonClass}" ${hasDocUrl ? 'data-action="open-doc"' : ''} type="button">
+                        <i class="fas fa-external-link-alt"></i> 原文
+                   </button>`;
             
             return `
                 <div class="content-item" data-id="${escapeHtml(item.id)}">
@@ -1028,9 +1032,7 @@ export function createViewerCore() {
                             ${sourceHtml}
                             ${commentsHtml}
                             ${attributesHtml}
-                            <button class="${buttonClass}" ${hasDocUrl ? 'data-action="open-doc"' : ''} type="button">
-                                <i class="fas fa-external-link-alt"></i> 原文
-                            </button>
+                            ${docHtml}
                         </div>
                     </div>
                 </div>
