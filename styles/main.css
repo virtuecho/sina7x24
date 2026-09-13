@@ -3,6 +3,18 @@ html {
             text-size-adjust: 100%;
         }
 
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -355,27 +367,6 @@ html {
             color: #1f5f46;
         }
 
-        .developer-panel__section {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(116, 144, 196, 0.2);
-        }
-
-        .developer-panel__section-title {
-            margin-bottom: 8px;
-            font-size: 13px;
-            font-weight: 700;
-            color: #2c3e50;
-        }
-
-        .developer-panel__section-toggle {
-            justify-content: space-between;
-        }
-
-        .developer-panel__field--wide {
-            grid-column: 1 / -1;
-        }
-        
         .refreshing {
             animation: rotate 1s linear infinite;
         }
@@ -783,13 +774,6 @@ html {
             font-size: 13px;
         }
         
-        .loading {
-            text-align: center;
-            padding: 30px;
-            font-size: 18px;
-            color: #777;
-        }
-
         .load-more {
             text-align: center;
             padding: 16px 0 24px;
@@ -811,6 +795,10 @@ html {
             font-size: 12px;
             color: #8a94a6;
             line-height: 1.4;
+        }
+
+        .load-more__unlock[hidden] {
+            display: none;
         }
         
         .error {
@@ -967,6 +955,34 @@ html {
             .content-actions {
                 align-self: stretch;
                 justify-content: space-between;
+            }
+
+            body:not(.minimal-mode) .content-footer {
+                gap: 8px;
+            }
+
+            body:not(.minimal-mode) .content-tags {
+                gap: 6px;
+            }
+
+            body:not(.minimal-mode) .tag {
+                padding: 3px 7px;
+            }
+
+            body:not(.minimal-mode) .content-actions {
+                align-self: flex-start;
+                justify-content: flex-start;
+                gap: 6px;
+            }
+
+            body:not(.minimal-mode) .action-btn {
+                min-height: 32px;
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+
+            body:not(.minimal-mode) .copy-btn {
+                min-width: 0;
             }
 
             .floating-actions {

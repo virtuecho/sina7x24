@@ -1,3 +1,23 @@
+export function escapeHtml(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+export function getSafeHttpUrl(value) {
+    if (typeof value !== 'string' || value.trim() === '') return null;
+
+    try {
+        const url = new URL(value, window.location.href);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+    } catch {
+        return null;
+    }
+}
+
 export function createViewerCore() {
         // Viewer core owns the page itself:
         // feed fetching, state merge, filters, rendering, stats, and built-in modals.
@@ -12,6 +32,7 @@ export function createViewerCore() {
         const SINA_HISTORY_PAGE_SIZE = 100;
         const REQUEST_TIMEOUT = 10000;
         const RETRY_DELAY_MS = 1200;
+        const MAX_FETCH_RETRIES = 2;
         const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 60000;
         const ITEM_LIMIT_COUNT = 100;
         const MINIMAL_MODE_STORAGE_KEY = 'sina7x24-minimal-mode';
@@ -45,10 +66,12 @@ export function createViewerCore() {
         let itemLimitEnabled = false;
         let minimalModeEnabled = isCompactRoute() || readMinimalModePreference();
         let itemLimitBeforeMinimalMode = null;
+        let minimalModeItemLimitUnlocked = false;
         let latestRefreshPaused = false;
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
+        let modalTrigger = null;
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         // Stable DOM references owned by the page shell
         const contentList = document.getElementById('contentList');
@@ -81,6 +104,7 @@ export function createViewerCore() {
         const globalLoading = document.getElementById('globalLoading');
         const loadMoreSentinel = document.getElementById('loadMoreSentinel');
         const loadMoreStatus = document.getElementById('loadMoreStatus');
+        const minimalItemLimitUnlockBtn = document.getElementById('minimalItemLimitUnlockBtn');
         const attrModal = document.getElementById('attrModal');
         const attrModalBackdrop = document.getElementById('attrModalBackdrop');
         const attrModalClose = document.getElementById('attrModalClose');
@@ -128,6 +152,10 @@ export function createViewerCore() {
                 currentSearch = this.value.toLowerCase();
                 filterContent();
             });
+            searchInput.addEventListener('focus', updateStickyPanelState);
+            searchInput.addEventListener('blur', function() {
+                window.requestAnimationFrame(updateStickyPanelState);
+            });
             
             typeFilter.addEventListener('change', function() {
                 currentType = this.value;
@@ -145,17 +173,19 @@ export function createViewerCore() {
             pauseLatestRefreshBtn.addEventListener('click', toggleLatestRefreshPaused);
             itemLimitBtn.addEventListener('click', toggleItemLimit);
             minimalModeBtn.addEventListener('click', toggleMinimalMode);
+            minimalItemLimitUnlockBtn.addEventListener('click', unlockMinimalModeItemLimit);
             stickyPanelToggleBtn.addEventListener('click', toggleStickyPanel);
             scrollTopBtn.addEventListener('click', scrollToTop);
             latestRefreshToggleBtn.addEventListener('click', toggleLatestRefreshPaused);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
+            document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('scroll', updateStickyPanelState, { passive: true });
             window.addEventListener('resize', updateStickyPanelState);
             if (window.addEventListener) {
                 window.addEventListener('popstate', handleMinimalModeRouteChange, false);
             }
             if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', updateStickyPanelState);
+                window.visualViewport.addEventListener('resize', updateStickyPanelScrollableLayout);
             }
         }
         
@@ -240,15 +270,21 @@ export function createViewerCore() {
                     itemLimitBeforeMinimalMode = itemLimitEnabled;
                 }
 
-                itemLimitEnabled = true;
-                enforceItemLimit();
-            } else if (itemLimitBeforeMinimalMode !== null) {
-                itemLimitEnabled = itemLimitBeforeMinimalMode;
-                itemLimitBeforeMinimalMode = null;
+                if (!minimalModeItemLimitUnlocked) {
+                    itemLimitEnabled = true;
+                    enforceItemLimit();
+                }
+            } else {
+                if (itemLimitBeforeMinimalMode !== null) {
+                    itemLimitEnabled = itemLimitBeforeMinimalMode;
+                    itemLimitBeforeMinimalMode = null;
+                }
+
+                minimalModeItemLimitUnlocked = false;
             }
 
             updateItemLimitButton();
-            updateStats(0, 0);
+            updateStats();
             filterContent();
             updateHistoryStatus();
         }
@@ -300,6 +336,7 @@ export function createViewerCore() {
             titleModeBtn.classList.toggle('is-active', showStandaloneTitle);
             titleModeBtn.setAttribute('title', tooltip);
             titleModeBtn.setAttribute('aria-label', tooltip);
+            titleModeBtn.setAttribute('aria-pressed', String(showStandaloneTitle));
         }
 
         function toggleTitleMode() {
@@ -318,6 +355,7 @@ export function createViewerCore() {
             sourceModeBtn.classList.toggle('is-active', showStandaloneSource);
             sourceModeBtn.setAttribute('title', tooltip);
             sourceModeBtn.setAttribute('aria-label', tooltip);
+            sourceModeBtn.setAttribute('aria-pressed', String(showStandaloneSource));
         }
 
         function toggleSourceMode() {
@@ -336,6 +374,7 @@ export function createViewerCore() {
             focusFilterBtn.classList.toggle('is-active', focusFilterEnabled);
             focusFilterBtn.setAttribute('title', tooltip);
             focusFilterBtn.setAttribute('aria-label', tooltip);
+            focusFilterBtn.setAttribute('aria-pressed', String(focusFilterEnabled));
         }
 
         function toggleFocusFilter() {
@@ -421,12 +460,14 @@ export function createViewerCore() {
         }
 
         function updateItemLimitButton() {
-            const isLockedByMinimalMode = minimalModeEnabled;
+            const isLockedByMinimalMode = minimalModeEnabled && !minimalModeItemLimitUnlocked;
             const label = isLockedByMinimalMode || itemLimitEnabled
                 ? `项目上限：${ITEM_LIMIT_COUNT}条`
                 : '项目上限：不限';
             const tooltip = isLockedByMinimalMode
                 ? `精简模式固定最多保留 ${ITEM_LIMIT_COUNT} 条项目`
+                : minimalModeEnabled
+                ? '精简模式项目上限已解锁；点击切换限制'
                 : itemLimitEnabled
                 ? `当前最多保留 ${ITEM_LIMIT_COUNT} 条项目；新消息到来时会自动删除更旧的项目`
                 : `当前不限制项目数量；点击后改为最多保留 ${ITEM_LIMIT_COUNT} 条`;
@@ -514,17 +555,20 @@ export function createViewerCore() {
 
             const isCompactViewport = shouldUseCompactStickyPanel();
             const collapseThreshold = getStickyPanelCollapseThreshold(isCompactViewport);
+            const isSearching = document.activeElement === searchInput;
 
-            if (!isCompactViewport || window.scrollY <= collapseThreshold) {
+            if (!isCompactViewport || (window.scrollY <= collapseThreshold && !isSearching)) {
                 stickyPanelPinnedOpen = false;
             }
 
+            const keepStickyPanelOpen = stickyPanelPinnedOpen || isSearching;
+
             const isCompact = isCompactViewport
                 && window.scrollY > collapseThreshold
-                && !stickyPanelPinnedOpen;
+                && !keepStickyPanelOpen;
             const isMobileExpanded = isCompactViewport
                 && window.scrollY > collapseThreshold
-                && stickyPanelPinnedOpen;
+                && keepStickyPanelOpen;
 
             stickyPanel.classList.toggle('is-compact', isCompact);
             stickyPanel.classList.toggle('is-mobile-expanded', isMobileExpanded);
@@ -542,7 +586,7 @@ export function createViewerCore() {
         }
 
         function toggleItemLimit() {
-            if (minimalModeEnabled) return;
+            if (minimalModeEnabled && !minimalModeItemLimitUnlocked) return;
 
             itemLimitEnabled = !itemLimitEnabled;
             updateItemLimitButton();
@@ -551,9 +595,21 @@ export function createViewerCore() {
                 enforceItemLimit();
             }
 
-            updateStats(0, 0);
+            updateStats();
             filterContent();
             updateHistoryStatus();
+        }
+
+        function unlockMinimalModeItemLimit() {
+            if (!minimalModeEnabled || minimalModeItemLimitUnlocked) return;
+
+            minimalModeItemLimitUnlocked = true;
+            itemLimitEnabled = false;
+            updateItemLimitButton();
+            updateStats();
+            filterContent();
+            updateHistoryStatus();
+            loadOlderPage();
         }
 
         function scrollToTop() {
@@ -585,7 +641,7 @@ export function createViewerCore() {
         }
 
         // Fetch JSON with timeout and configurable retries.
-        async function fetchJson(url, { page, purpose, maxRetries = Number.POSITIVE_INFINITY } = {}) {
+        async function fetchJson(url, { page, purpose, maxRetries = MAX_FETCH_RETRIES } = {}) {
             const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
             const maxAttempts = Number.isFinite(maxRetries)
                 ? Math.max(1, Math.floor(maxRetries) + 1)
@@ -646,6 +702,12 @@ export function createViewerCore() {
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
             } catch (error) {
+                if (isFirstLoad) {
+                    totalItemsEl.textContent = '—';
+                    lastUpdateEl.textContent = '加载失败';
+                    visibleItemsEl.textContent = '—';
+                    updatedItemsEl.textContent = '—';
+                }
                 showError(`获取数据失败：${error.message}。请确认本地代理服务正在运行，并稍后重试。`);
             } finally {
                 isRefreshing = false;
@@ -690,7 +752,7 @@ export function createViewerCore() {
                 const trimmedCount = enforceItemLimit();
                 
                 lastUpdateTime = new Date();
-                updateStats(addedItems.length, updatedItems.length);
+                updateStats(updatedItems.length);
                 
                 if (isFirstLoad || trimmedCount > 0 || (orderDisorderDetected && addedItems.length > 0)) {
                     filterContent();
@@ -778,21 +840,6 @@ export function createViewerCore() {
             idOrderStatus.classList.toggle('is-ok', !lastIdOrderStatus.warning && lastIdOrderStatus.text !== 'ID顺序检测：未检测');
         }
 
-        function clearLoadedItems() {
-            allItems = [];
-            itemsById = new Map();
-            currentPage = 1;
-            hasMorePages = true;
-            isLoadingMore = false;
-            contentList.innerHTML = '';
-        }
-
-        function replaceLoadedItems(items) {
-            const normalized = normalizeItemsByIdDesc(items).map(item => ({ ...item }));
-            allItems = normalized;
-            itemsById = new Map(normalized.map(item => [item.id, item]));
-        }
-
         // Merge new items into the existing list
         function mergeItems(newItems, { prepend = false } = {}) {
             const addedItems = [];
@@ -810,16 +857,16 @@ export function createViewerCore() {
                 } else {
                     // Update item
                     // Check for changes
-                    const hasChanges = 
+                    const hasVisibleChanges =
                         JSON.stringify(existingItem.rich_text) !== JSON.stringify(newItem.rich_text) ||
                         JSON.stringify(existingItem.docurl) !== JSON.stringify(newItem.docurl) ||
-                        JSON.stringify(existingItem.tag) !== JSON.stringify(newItem.tag);
+                        JSON.stringify(existingItem.tag) !== JSON.stringify(newItem.tag) ||
+                        JSON.stringify(existingItem.multimedia) !== JSON.stringify(newItem.multimedia) ||
+                        JSON.stringify(existingItem.comment_list) !== JSON.stringify(newItem.comment_list);
                     
-                    if (hasChanges) {
-                        // Update item properties
-                        existingItem.rich_text = newItem.rich_text;
-                        existingItem.docurl = newItem.docurl;
-                        existingItem.tag = newItem.tag;
+                    Object.assign(existingItem, newItem);
+
+                    if (hasVisibleChanges) {
                         updatedItems.push(existingItem);
                     }
                 }
@@ -882,10 +929,7 @@ export function createViewerCore() {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = newContent;
             
-            // Add new elements to the top of the list
-            Array.from(tempDiv.children).forEach(element => {
-                contentList.insertBefore(element, contentList.firstChild);
-            });
+            contentList.prepend(...tempDiv.children);
         }
 
         // Render older items at the bottom
@@ -922,18 +966,9 @@ export function createViewerCore() {
 
         const DEFAULT_COMMENT_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%23e2e8f0"/><circle cx="22" cy="17" r="8" fill="%2394a3b8"/><path d="M9 37c2.8-7 9.4-10 13-10s10.2 3 13 10" fill="%2394a3b8"/></svg>';
 
-        function escapeHtml(text) {
-            return String(text ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-        
         // Create a single content item
         function createContentItem(item) {
-            const docUrl = getDocUrl(item);
+            const docUrl = minimalModeEnabled ? '' : getDocUrl(item);
             const hasDocUrl = Boolean(docUrl);
             const buttonClass = hasDocUrl ? 'action-btn' : 'action-btn disabled';
             
@@ -943,18 +978,20 @@ export function createViewerCore() {
             const titleClass = isHighlight ? 'content-title highlight-text' : 'content-title';
             const displayParts = getDisplayTextParts(item.rich_text);
             
-            const imageUrls = Array.isArray(item.multimedia?.img_url) ? item.multimedia.img_url : [];
+            const imageUrls = (Array.isArray(item.multimedia?.img_url) ? item.multimedia.img_url : [])
+                .map(getSafeHttpUrl)
+                .filter(Boolean);
             const mediaHtml = imageUrls.length > 0
                 ? `<div class="content-media">
-                        ${imageUrls.map(url => `<img class="content-image" src="${url}" alt="">`).join('')}
+                        ${imageUrls.map(url => `<img class="content-image" src="${escapeHtml(url)}" alt="">`).join('')}
                    </div>`
                 : '';
 
             const titleHtml = displayParts.title
-                ? `<div class="${titleClass}">${displayParts.title}</div>`
+                ? `<div class="${titleClass}">${escapeHtml(displayParts.title)}</div>`
                 : '';
             const bodyHtml = displayParts.body
-                ? `<div class="${textClass}">${displayParts.body}</div>`
+                ? `<div class="${textClass}">${escapeHtml(displayParts.body)}</div>`
                 : '';
             const sourceLabel = displayParts.source ? `来源：${displayParts.source}` : '';
             const sourceTooltip = displayParts.source ? `识别出的来源：${displayParts.source}` : '';
@@ -964,25 +1001,29 @@ export function createViewerCore() {
             const attributesHtml = minimalModeEnabled
                 ? ''
                 : '<button class="action-btn attr-btn" data-action="attrs">全部属性</button>';
-            const loadedCommentCount = Array.isArray(item.comment_list?.list) ? item.comment_list.list.length : 0;
-            const commentsHtml = loadedCommentCount > 0
+            const commentsHtml = !minimalModeEnabled && Array.isArray(item.comment_list?.list) && item.comment_list.list.length > 0
                 ? `<button class="action-btn comment-btn" data-action="comments" title="查看评论信息" aria-label="查看评论信息">
                                 <i class="fas fa-comments"></i> 评论
                             </button>`
                 : '';
+            const docHtml = minimalModeEnabled
+                ? ''
+                : `<button class="${buttonClass}" ${hasDocUrl ? 'data-action="open-doc"' : ''} type="button">
+                        <i class="fas fa-external-link-alt"></i> 原文
+                   </button>`;
             
             return `
-                <div class="content-item" data-id="${item.id}">
+                <div class="content-item" data-id="${escapeHtml(item.id)}">
                     <div class="content-header">
-                        <span class="content-id">ID: ${item.id}</span>
-                        <span class="content-time">${formatTime(item.create_time)}</span>
+                        <span class="content-id">ID: ${escapeHtml(item.id)}</span>
+                        <span class="content-time">${escapeHtml(formatTime(item.create_time))}</span>
                     </div>
                     ${titleHtml}
                     ${bodyHtml}
                     ${mediaHtml}
                     <div class="content-footer">
                         <div class="content-tags">
-                            ${item.tag.map(t => `<span class="tag">${t.name}</span>`).join('')}
+                            ${item.tag.map(t => `<span class="tag">${escapeHtml(t.name)}</span>`).join('')}
                         </div>
                         <div class="content-actions">
                             <button class="action-btn copy-btn" data-action="copy" title="复制这条新闻原文" aria-label="复制这条新闻原文">
@@ -991,9 +1032,7 @@ export function createViewerCore() {
                             ${sourceHtml}
                             ${commentsHtml}
                             ${attributesHtml}
-                            <button class="${buttonClass}" ${hasDocUrl ? 'data-action="open-doc"' : ''} type="button">
-                                <i class="fas fa-external-link-alt"></i> 原文
-                            </button>
+                            ${docHtml}
                         </div>
                     </div>
                 </div>
@@ -1002,8 +1041,9 @@ export function createViewerCore() {
         
         // Open document URL
         function openDocUrl(url) {
-            if (url) {
-                window.open(url, '_blank');
+            const safeUrl = getSafeHttpUrl(url);
+            if (safeUrl) {
+                window.open(safeUrl, '_blank', 'noopener');
             }
         }
 
@@ -1053,17 +1093,14 @@ export function createViewerCore() {
         
         // Get document URL (convert mobile link to PC link)
         function getDocUrl(item) {
-            // Prefer item.docurl
-            if (item.docurl && item.docurl.trim() !== '') {
-                let url = item.docurl;
-                // Replace domain and path format
-                url = url.replace('//finance.sina.cn', '//finance.sina.com.cn')
-                        .replace('/detail-', '/doc-')
-                        .replace('.d.html', '.shtml');
-                return url;
-            }
-            
-            return null;
+            if (typeof item.docurl !== 'string' || item.docurl.trim() === '') return null;
+
+            return getSafeHttpUrl(
+                item.docurl
+                    .replace('//finance.sina.cn', '//finance.sina.com.cn')
+                    .replace('/detail-', '/doc-')
+                    .replace('.d.html', '.shtml')
+            );
         }
 
         function getCommentAvatarUrl(url) {
@@ -1074,132 +1111,8 @@ export function createViewerCore() {
             return `/api/avatar?url=${encodeURIComponent(url.trim())}`;
         }
 
-        const FIELD_MEANINGS = {
-            id: '唯一条目ID',
-            zhibo_id: '直播间ID',
-            type: '内容类型代码',
-            rich_text: '正文内容（富文本）',
-            multimedia: '多媒体内容（字符串或对象）',
-            'multimedia.img_url[]': '图片URL列表',
-            commentid: '评论系统ID',
-            compere_id: '主持人/主播ID',
-            creator: '创建者账号',
-            mender: '最后编辑账号',
-            create_time: '创建时间',
-            update_time: '更新时间',
-            is_need_check: '是否需要审核',
-            check_time: '审核时间',
-            check_status: '审核状态',
-            check_user: '审核人账号',
-            is_delete: '是否删除',
-            top_value: '置顶权重/优先级',
-            is_focus: '是否焦点',
-            source_content_id: '来源内容ID',
-            anchor_image_url: '主播图片URL',
-            anchor: '主播名称',
-            ext: '扩展JSON字符串（需解析）',
-            ext_parsed: '解析后的ext对象',
-            'ext_parsed.docurl': '文档URL（来自ext）',
-            'ext_parsed.docid': '文档ID（来自ext）',
-            'ext_parsed.stocks': '关联标的列表',
-            'ext_parsed.stocks[].market': '标的市场',
-            'ext_parsed.stocks[].symbol': '标的代码',
-            'ext_parsed.stocks[].key': '标的关键词/名称',
-            'ext_parsed.stocks[].sym_party_status': '标的党派状态（推测）',
-            'ext_parsed.needPushWB': '是否推送微博',
-            'ext_parsed.needCMSLink': '是否生成CMS链接',
-            'ext_parsed.needCalender': '是否关联日历',
-            old_live_cid: '旧版内容ID',
-            tab: 'Tab名称',
-            is_repeat: '是否重复',
-            'tag[]': '标签列表',
-            'tag[].id': '标签ID',
-            'tag[].name': '标签名称',
-            like_nums: '点赞数',
-            comment_list: '评论概览',
-            'comment_list.total': '评论总数',
-            'comment_list.thread_show': '是否显示线程',
-            'comment_list.qreply': '问答回复数',
-            'comment_list.qreply_show': '问答回复显示标记',
-            'comment_list.show': '评论显示标记',
-            'comment_list.list[]': '评论列表',
-            'comment_list.list[].mid': '评论ID',
-            'comment_list.list[].comment_mid': '父评论ID',
-            'comment_list.list[].channel': '评论频道',
-            'comment_list.list[].newsid': '新闻ID',
-            'comment_list.list[].news_mid': '新闻消息ID',
-            'comment_list.list[].channel_source': '来源频道',
-            'comment_list.list[].newsid_source': '来源新闻ID',
-            'comment_list.list[].news_mid_source': '来源新闻消息ID',
-            'comment_list.list[].status': '审核状态',
-            'comment_list.list[].time': '评论时间',
-            'comment_list.list[].agree': '赞同数',
-            'comment_list.list[].score': '评分',
-            'comment_list.list[].hot': '热度',
-            'comment_list.list[].against': '反对数',
-            'comment_list.list[].length': '内容长度',
-            'comment_list.list[].rank': '排序/排名',
-            'comment_list.list[].vote': '投票数',
-            'comment_list.list[].level': '层级',
-            'comment_list.list[].parent': '父线程ID',
-            'comment_list.list[].parent_mid': '父评论MID',
-            'comment_list.list[].thread': '线程ID',
-            'comment_list.list[].thread_mid': '线程MID',
-            'comment_list.list[].uid': '用户ID',
-            'comment_list.list[].nick': '用户昵称',
-            'comment_list.list[].usertype': '用户类型',
-            'comment_list.list[].content': '评论内容',
-            'comment_list.list[].ip': 'IP地址',
-            'comment_list.list[].config': '配置字符串',
-            'comment_list.list[].profile_img': '用户头像URL',
-            'comment_list.list[].parent_uid': '父用户ID',
-            'comment_list.list[].parent_nick': '父用户昵称',
-            'comment_list.list[].parent_profile_img': '父用户头像URL',
-            'comment_list.list[].area': '用户地区',
-            'comment_list.list[].status_uid': '状态用户ID',
-            'comment_list.list[].comment_imgs': '评论图片',
-            'comment_list.list[].status_cmnt_mid': '状态评论MID',
-            'comment_list.list[].import_type': '导入类型',
-            'comment_list.list[].media_type': '媒体类型',
-            'comment_list.list[].audio': '音频URL',
-            'comment_list.list[].video': '视频URL',
-            'comment_list.list[].openid': 'OpenID',
-            'comment_list.list[].login_type': '登录类型',
-            'comment_list.list[].batch_type': '批处理类型',
-            'comment_list.list[].check_type': '检查类型',
-            'comment_list.list[].status_show': '状态显示标记',
-            'comment_list.list[].code': '状态码',
-            'comment_list.list[].layer': '层级编号',
-            'comment_list.list[].show_loc': '显示位置标记',
-            'comment_list.list[].top_desc': '置顶描述',
-            'comment_list.list[].thread2': '次级线程ID',
-            'comment_list.list[].status2': '次级状态',
-            'comment_list.list[].content_ext': '评论扩展内容',
-            'comment_list.list[].content_ext.reply': '回复数',
-            'comment_list.list[].content_ext.weibourl': '微博链接',
-            'comment_list.list[].content_ext.videoinfo': '视频信息',
-            'comment_list.list[].is_hot': '是否热门',
-            'comment_list.list[].is_top': '是否置顶',
-            'comment_list.list[].parent_new': '父级新标记',
-            'comment_list.list[].count_layer': '层级计数',
-            'comment_list.list[].did': '设备ID',
-            'comment_list.list[].is_agree': '是否赞同',
-            'comment_list.list[].has_my': '是否包含我的数据',
-            docurl: '移动端文档URL',
-            rich_text_nick_to_url: '昵称到URL映射',
-            rich_text_nick_to_routeUri: '昵称到路由URI映射',
-            compere_info: '主播/主持人信息'
-        };
-
-        function normalizePath(path) {
-            return path.replace(/\[\d+\]/g, '[]');
-        }
-
         function inferMeaning(path, value) {
-            const normalizedPath = normalizePath(path);
-            if (FIELD_MEANINGS[normalizedPath]) return FIELD_MEANINGS[normalizedPath];
-
-            const key = normalizedPath.split('.').pop();
+            const key = path.replace(/\[\d+\]/g, '[]').split('.').pop();
             if (!key) return '根节点值';
             if (/_time$/.test(key)) return '时间戳';
             if (/_id$/.test(key) || key === 'id') return '标识符';
@@ -1296,8 +1209,9 @@ export function createViewerCore() {
             attrTableBody.appendChild(fragment);
         }
 
-        function openAttributeModal(item) {
-            closeCommentsModal();
+        function openAttributeModal(item, trigger) {
+            closeCommentsModal(false);
+            modalTrigger = trigger;
             const displayItem = buildDisplayItem(item);
             const entries = [];
             flattenObject(displayItem, '', entries);
@@ -1315,11 +1229,16 @@ export function createViewerCore() {
 
             attrModal.classList.add('is-open');
             attrModal.setAttribute('aria-hidden', 'false');
+            attrModalClose.focus();
         }
 
-        function closeAttributeModal() {
+        function closeAttributeModal(restoreFocus = true) {
             attrModal.classList.remove('is-open');
             attrModal.setAttribute('aria-hidden', 'true');
+            if (restoreFocus) {
+                modalTrigger?.focus();
+                modalTrigger = null;
+            }
         }
 
         function renderCommentsSummary(item) {
@@ -1431,17 +1350,23 @@ export function createViewerCore() {
             commentsList.appendChild(fragment);
         }
 
-        function openCommentsModal(item) {
-            closeAttributeModal();
+        function openCommentsModal(item, trigger) {
+            closeAttributeModal(false);
+            modalTrigger = trigger;
             renderCommentsSummary(item);
             renderCommentsList(item);
             commentsModal.classList.add('is-open');
             commentsModal.setAttribute('aria-hidden', 'false');
+            commentsModalClose.focus();
         }
 
-        function closeCommentsModal() {
+        function closeCommentsModal(restoreFocus = true) {
             commentsModal.classList.remove('is-open');
             commentsModal.setAttribute('aria-hidden', 'true');
+            if (restoreFocus) {
+                modalTrigger?.focus();
+                modalTrigger = null;
+            }
         }
 
         function setupAttributeModal() {
@@ -1465,7 +1390,7 @@ export function createViewerCore() {
                     if (itemEl) {
                         const itemId = Number(itemEl.dataset.id);
                         const item = itemsById.get(itemId);
-                        if (item) openCommentsModal(item);
+                        if (item) openCommentsModal(item, commentsBtn);
                     }
                     return;
                 }
@@ -1487,7 +1412,7 @@ export function createViewerCore() {
                     if (itemEl) {
                         const itemId = Number(itemEl.dataset.id);
                         const item = itemsById.get(itemId);
-                        if (item) openAttributeModal(item);
+                        if (item) openAttributeModal(item, attrBtn);
                     }
                     return;
                 }
@@ -1503,6 +1428,19 @@ export function createViewerCore() {
             });
 
             document.addEventListener('keydown', function(event) {
+                if (event.key === 'Tab') {
+                    const modalCloseButton = attrModal.classList.contains('is-open')
+                        ? attrModalClose
+                        : commentsModal.classList.contains('is-open')
+                            ? commentsModalClose
+                            : null;
+                    if (modalCloseButton) {
+                        event.preventDefault();
+                        modalCloseButton.focus();
+                        return;
+                    }
+                }
+
                 if (event.key === 'Escape' && attrModal.classList.contains('is-open')) {
                     closeAttributeModal();
                     return;
@@ -1523,7 +1461,7 @@ export function createViewerCore() {
         }
         
         // Update stats
-        function updateStats(addedCount = 0, updatedCount = 0) {
+        function updateStats(updatedCount = 0) {
             totalItemsEl.textContent = allItems.length;
             lastUpdateEl.textContent = lastUpdateTime
                 ? lastUpdateTime.toLocaleTimeString('zh-CN', { hour12: false })
@@ -1717,6 +1655,11 @@ export function createViewerCore() {
         }
 
         function updateHistoryStatus({ loading = false, exhausted = false, error = '' } = {}) {
+            const canUnlockMinimalItemLimit = minimalModeEnabled
+                && !minimalModeItemLimitUnlocked
+                && allItems.length >= ITEM_LIMIT_COUNT;
+            minimalItemLimitUnlockBtn.hidden = !canUnlockMinimalItemLimit;
+
             const baseText = getHistoryStatusText();
             const parts = [];
 
@@ -1743,13 +1686,26 @@ export function createViewerCore() {
         }
         
         // Auto-refresh
-        function startAutoRefresh() {
-            if (refreshInterval) {
+        function stopAutoRefresh() {
+            if (refreshInterval !== null) {
                 clearInterval(refreshInterval);
             }
+            refreshInterval = null;
+        }
 
-            if (latestRefreshPaused) {
-                refreshInterval = null;
+        function handleVisibilityChange() {
+            if (document.hidden) {
+                stopAutoRefresh();
+                return;
+            }
+
+            fetchData();
+            startAutoRefresh();
+        }
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            if (latestRefreshPaused || document.hidden) {
                 return;
             }
 

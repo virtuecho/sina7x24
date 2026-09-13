@@ -15,6 +15,9 @@
     <link rel="stylesheet" href="./styles/main.css">
 </head>
 <body>
+    <script>
+        if (location.pathname.replace(/\/+$/, '') === '/legacy') document.body.classList.add('minimal-mode');
+    </script>
     <div class="global-loading" id="globalLoading"></div>
 
     <header>
@@ -40,11 +43,13 @@
             <div class="sticky-panel__content" id="stickyPanelContent">
                 <div class="controls">
                     <div class="search-box">
+                        <label class="sr-only" for="searchInput">搜索新闻</label>
                         <input type="text" id="searchInput" placeholder="搜索直播内容 / ID / 时间...">
                         <i class="fas fa-search"></i>
                     </div>
 
                     <div class="filter-box">
+                        <label class="sr-only" for="typeFilter">新闻筛选</label>
                         <select id="typeFilter">
                             <option value="all">全部</option>
                             <option value="has-comments">评论：有</option>
@@ -61,7 +66,7 @@
                             <option value="110">两会</option>
                         </select>
 
-                        <button class="refresh-btn toggle-btn" id="focusFilterBtn" type="button" title="切换是否只看焦点消息" aria-label="切换是否只看焦点消息">只看焦点：关</button>
+                        <button class="refresh-btn toggle-btn" id="focusFilterBtn" type="button" title="切换是否只看焦点消息" aria-label="切换是否只看焦点消息" aria-pressed="false">只看焦点：关</button>
 
                         <button class="refresh-btn" id="refreshBtn" type="button" title="立即拉取最新消息" aria-label="立即拉取最新消息">
                             <i class="fas fa-sync-alt" id="refreshIcon"></i> 刷新数据
@@ -74,8 +79,8 @@
 
                 <div class="developer-panel" id="developerPanel" hidden>
                     <div class="developer-panel__row">
-                        <button class="refresh-btn toggle-btn is-active" id="titleModeBtn" type="button" title="将【标题】单独提取显示" aria-label="将【标题】单独提取显示">标题单显：开</button>
-                        <button class="refresh-btn toggle-btn is-active" id="sourceModeBtn" type="button" title="将末尾来源单独提取显示" aria-label="将末尾来源单独提取显示">来源单显：开</button>
+                        <button class="refresh-btn toggle-btn is-active" id="titleModeBtn" type="button" title="将【标题】单独提取显示" aria-label="将【标题】单独提取显示" aria-pressed="true">标题单显：开</button>
+                        <button class="refresh-btn toggle-btn is-active" id="sourceModeBtn" type="button" title="将末尾来源单独提取显示" aria-label="将末尾来源单独提取显示" aria-pressed="true">来源单显：开</button>
                         <div class="developer-panel__field">
                             <label class="developer-panel__label" for="refreshSecondsInput">自动刷新秒数</label>
                             <div class="developer-panel__input-row">
@@ -91,20 +96,20 @@
 
                 <div class="stats">
                     <div class="stat-item">
-                        <div class="stat-number" id="totalItems">0</div>
+                        <div class="stat-number" id="totalItems">—</div>
                         <div class="stat-label">总项目数</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number" id="lastUpdate">--:--</div>
+                        <div class="stat-number" id="lastUpdate">加载中…</div>
                         <div class="stat-label">最后更新时间</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number" id="visibleItems">0</div>
+                        <div class="stat-number" id="visibleItems">—</div>
                         <div class="stat-label">显示项目</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-number" id="updatedItems">0</div>
-                        <div class="stat-label">原文链接更新项目</div>
+                        <div class="stat-number" id="updatedItems">—</div>
+                        <div class="stat-label">内容更新</div>
                     </div>
                 </div>
             </div>
@@ -113,6 +118,7 @@
         <div class="content-list" id="contentList"></div>
         <div class="load-more" id="loadMoreSentinel">
             <div class="load-more__status" id="loadMoreStatus"><i class="fas fa-spinner fa-spin"></i></div>
+            <button class="refresh-btn load-more__unlock" id="minimalItemLimitUnlockBtn" type="button" hidden>解除 100 条限制</button>
             <div class="load-more__note">数据来源: 新浪财经直播API | 本页面仅用于展示目的</div>
         </div>
     </div>

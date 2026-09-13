@@ -1,46 +1,34 @@
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
 import express from 'express';
-import {
-  ALLOWED_IMAGE_HOST_SUFFIXES,
-  API_TIMEOUT_MS,
-  AVATAR_TIMEOUT_MS,
-  ROOT_DIR,
-  SINA_ORIGIN
-} from './config.js';
-import { registerHealthRoute } from './routes/health.js';
-import { registerZhiboProxyRoute } from './routes/zhibo-proxy.js';
-import { registerAvatarRoute } from './routes/avatar.js';
+import { handleAvatarRequest } from '../backend/core/avatar.js';
+import { handleSinaApiProxyRequest } from '../backend/core/sina.js';
+import { createWebRequestFromExpress, sendWebResponseToExpress } from './adapters/web-interop.js';
+import { ROOT_DIR } from './config.js';
 
 function createApp() {
   const app = express();
-  const indexPath = path.join(ROOT_DIR, 'index.html');
 
   app.disable('x-powered-by');
   app.use(express.json({ limit: '256kb' }));
 
-  registerHealthRoute(app);
-  registerZhiboProxyRoute(app, {
-    sinaOrigin: SINA_ORIGIN,
-    apiTimeoutMs: API_TIMEOUT_MS
-  });
-  registerAvatarRoute(app, {
-    avatarTimeoutMs: AVATAR_TIMEOUT_MS,
-    allowedImageHostSuffixes: ALLOWED_IMAGE_HOST_SUFFIXES
+  app.get('/healthz', (_req, res) => {
+    res.json({ ok: true });
   });
 
-  app.get('/', (_req, res) => {
+  app.use('/api/zhibo', async (req, res) => {
+    const request = createWebRequestFromExpress(req);
+    const response = await handleSinaApiProxyRequest(request);
+    await sendWebResponseToExpress(res, response);
+  });
+
+  app.get('/api/avatar', async (req, res) => {
+    const request = createWebRequestFromExpress(req);
+    const response = await handleAvatarRequest(request);
+    await sendWebResponseToExpress(res, response);
+  });
+
+  app.get(['/', '/legacy'], (_req, res) => {
     res.sendFile(path.join(ROOT_DIR, 'index.html'));
-  });
-
-  app.get('/legacy', async (_req, res, next) => {
-    try {
-      const indexHtml = await readFile(indexPath, 'utf8');
-      const legacyHtml = indexHtml.replace('<body>', '<body class="minimal-mode">');
-      res.type('html').send(legacyHtml);
-    } catch (error) {
-      next(error);
-    }
   });
 
   app.use(
