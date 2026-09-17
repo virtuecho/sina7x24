@@ -27,9 +27,7 @@ export function createViewerCore() {
         // Use the local same-origin proxy instead of public CORS relay services.
         const API_BASE = '/api/zhibo/feed';
         const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&type=0';
-        const SINA_PAGE_SIZE = 30;
-        const SINA_INITIAL_PAGE_SIZE = 100;
-        const SINA_HISTORY_PAGE_SIZE = 100;
+        const SINA_PAGE_SIZE = 100;
         const REQUEST_TIMEOUT = 10000;
         const RETRY_DELAY_MS = 1200;
         const MAX_FETCH_RETRIES = 2;
@@ -688,10 +686,144 @@ export function createViewerCore() {
                 }
             }
         }
+
+        function isValidFeedResponse(data) {
+            return data?.result?.status?.code === 0
+                && data?.result?.data?.feed;
+        }
+
+        function replaceFeedItems(data, items) {
+            return {
+                ...data,
+                result: {
+                    ...data.result,
+                    data: {
+                        ...data.result.data,
+                        feed: {
+                            ...data.result.data.feed,
+                            list: items
+                        }
+                    }
+                }
+            };
+        }
+
+        function isLoadedItem(item) {
+            const id = item?.id;
+            const numericId = Number(id);
+            return (id !== undefined && id !== null && itemsById.has(id))
+                || (Number.isFinite(numericId) && itemsById.has(numericId));
+        }
+
+        async function fetchLatestPagesUntilOverlap(baseData, baseItems) {
+            const combinedItems = [...baseItems];
+            let page = 1;
+            let data = baseData;
+
+            while (true) {
+                const feed = data.result.data.feed;
+                const pageItems = Array.isArray(feed.list) ? feed.list : [];
+                const hasOverlap = pageItems.some(isLoadedItem);
+
+                const pageInfo = feed.page_info;
+                const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
+                const reachedEnd = pageItems.length < SINA_PAGE_SIZE
+                    || !Number.isFinite(lastPage)
+                    || page >= lastPage;
+
+                if (hasOverlap || reachedEnd) {
+                    return replaceFeedItems(baseData, combinedItems);
+                }
+
+                page += 1;
+                data = await fetchJson(buildApiUrl(page, SINA_PAGE_SIZE), {
+                    page,
+                    purpose: 'latest catch-up'
+                });
+
+                if (!isValidFeedResponse(data)) {
+                    throw new Error('最新消息补齐失败：接口返回的数据格式不正确');
+                }
+
+                combinedItems.push(...(Array.isArray(data.result.data.feed.list)
+                    ? data.result.data.feed.list
+                    : []));
+            }
+        }
+
+        async function fetchLatestData() {
+            const latestData = await fetchJson(buildApiUrl(1, SINA_PAGE_SIZE), {
+                page: 1,
+                purpose: 'latest'
+            });
+
+            if (isFirstLoad || allItems.length === 0 || !isValidFeedResponse(latestData)) {
+                return latestData;
+            }
+
+            const latestItems = Array.isArray(latestData.result.data.feed.list)
+                ? latestData.result.data.feed.list
+                : [];
+            const hasLoadedItem = latestItems.some(isLoadedItem);
+
+            if (hasLoadedItem) {
+                return latestData;
+            }
+
+            // More than one page arrived since the last refresh. Keep loading
+            // latest pages until one overlaps the locally known feed.
+            return fetchLatestPagesUntilOverlap(latestData, latestItems);
+        }
+
+        function captureScrollAnchor() {
+            const contentItems = Array.from(contentList.querySelectorAll('.content-item'));
+            const visibleItems = contentItems.filter(element => {
+                const rect = element.getBoundingClientRect();
+                return rect.bottom > 0 && rect.top < window.innerHeight;
+            });
+            const anchorElement = visibleItems[visibleItems.length - 1];
+
+            if (!anchorElement) return null;
+
+            return {
+                id: String(anchorElement.dataset.id),
+                top: anchorElement.getBoundingClientRect().top,
+                isLastItem: anchorElement === contentItems[contentItems.length - 1]
+            };
+        }
+
+        function restoreScrollAnchor(anchor) {
+            if (!anchor) return;
+
+            window.requestAnimationFrame(() => {
+                if (itemLimitEnabled && anchor.isLastItem) {
+                    const nextScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                    window.scrollTo(0, nextScrollY);
+                    return;
+                }
+
+                const anchorElement = Array.from(contentList.querySelectorAll('.content-item'))
+                    .find(element => String(element.dataset.id) === anchor.id);
+
+                if (!anchorElement && itemLimitEnabled) {
+                    window.scrollTo(0, 0);
+                    return;
+                }
+
+                if (!anchorElement) return;
+
+                const delta = anchorElement.getBoundingClientRect().top - anchor.top;
+                if (Math.abs(delta) > 0.5) {
+                    window.scrollBy(0, delta);
+                }
+            });
+        }
         
         // Fetch data
         async function fetchData() {
             if (isRefreshing || refreshPaused) return;
+
+            const scrollAnchor = captureScrollAnchor();
 
             try {
                 isRefreshing = true;
@@ -699,10 +831,10 @@ export function createViewerCore() {
                 showGlobalLoading();
                 hideError();
                 
-                const latestPageSize = isFirstLoad ? SINA_INITIAL_PAGE_SIZE : SINA_PAGE_SIZE;
-                const data = await fetchJson(buildApiUrl(1, latestPageSize), { page: 1, purpose: 'latest' });
+                const data = await fetchLatestData();
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
+                restoreScrollAnchor(scrollAnchor);
             } catch (error) {
                 if (isFirstLoad) {
                     totalItemsEl.textContent = '—';
@@ -1728,18 +1860,33 @@ export function createViewerCore() {
             updateHistoryStatus({ loading: true });
             
             try {
-                const nextPage = currentPage + 1;
-                // Keep history pagination aligned with the initial page window.
-                const data = await fetchJson(buildApiUrl(nextPage, SINA_HISTORY_PAGE_SIZE), { page: nextPage, purpose: 'history' });
-                const result = processData(data, { page: nextPage, mode: 'append' });
-                
-                currentPage = nextPage;
+                let nextPage = currentPage + 1;
 
-                if (result.rawItems.length === 0 || result.addedItems.length === 0) {
-                    hasMorePages = false;
-                    updateHistoryStatus({ exhausted: true });
-                } else {
-                    updateHistoryStatus();
+                while (true) {
+                    // Keep history pagination aligned with the initial page window.
+                    const data = await fetchJson(buildApiUrl(nextPage, SINA_PAGE_SIZE), { page: nextPage, purpose: 'history' });
+                    const result = processData(data, { page: nextPage, mode: 'append' });
+                    const pageInfo = result.pageInfo;
+                    const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
+
+                    currentPage = nextPage;
+
+                    const reachedEnd = result.rawItems.length === 0
+                        || !Number.isFinite(lastPage)
+                        || nextPage >= lastPage;
+
+                    if (reachedEnd) {
+                        hasMorePages = false;
+                        updateHistoryStatus({ exhausted: true });
+                        break;
+                    }
+
+                    if (result.addedItems.length > 0) {
+                        updateHistoryStatus();
+                        break;
+                    }
+
+                    nextPage += 1;
                 }
             } catch (error) {
                 updateHistoryStatus({ error: `加载失败：${error.message}` });
