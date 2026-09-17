@@ -71,6 +71,7 @@ export function createViewerCore() {
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
+        let scrollInteractionVersion = 0;
         let modalTrigger = null;
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         // Stable DOM references owned by the page shell
@@ -179,6 +180,8 @@ export function createViewerCore() {
             latestRefreshToggleBtn.addEventListener('click', toggleRefreshPaused);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
             document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('wheel', markScrollInteraction, { passive: true });
+            window.addEventListener('touchmove', markScrollInteraction, { passive: true });
             window.addEventListener('scroll', updateStickyPanelState, { passive: true });
             window.addEventListener('resize', updateStickyPanelState);
             if (window.addEventListener) {
@@ -614,11 +617,17 @@ export function createViewerCore() {
             loadOlderPage();
         }
 
+        function markScrollInteraction() {
+            scrollInteractionVersion += 1;
+        }
+
         function scrollToTop() {
+            markScrollInteraction();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function scrollToBottom() {
+            markScrollInteraction();
             window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
 
             scheduleHistoryLoadCheck();
@@ -794,10 +803,12 @@ export function createViewerCore() {
             };
         }
 
-        function restoreScrollAnchor(anchor) {
-            if (!anchor) return;
+        function restoreScrollAnchor(anchor, expectedScrollInteractionVersion) {
+            if (!anchor || expectedScrollInteractionVersion !== scrollInteractionVersion) return;
 
             window.requestAnimationFrame(() => {
+                if (expectedScrollInteractionVersion !== scrollInteractionVersion) return;
+
                 if (itemLimitEnabled && anchor.isLastItem) {
                     const nextScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
                     window.scrollTo(0, nextScrollY);
@@ -826,6 +837,7 @@ export function createViewerCore() {
             if (isRefreshing || refreshPaused) return;
 
             const scrollAnchor = captureScrollAnchor();
+            const expectedScrollInteractionVersion = scrollInteractionVersion;
 
             try {
                 isRefreshing = true;
@@ -836,7 +848,7 @@ export function createViewerCore() {
                 const data = await fetchLatestData(pageSize);
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
-                restoreScrollAnchor(scrollAnchor);
+                restoreScrollAnchor(scrollAnchor, expectedScrollInteractionVersion);
             } catch (error) {
                 if (isFirstLoad) {
                     totalItemsEl.textContent = '—';
