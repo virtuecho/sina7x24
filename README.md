@@ -10,7 +10,8 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 - Search and filter by content, message ID, time text, source, comments, and tags
 - Extract titles and trailing sources into standalone display blocks
 - Inspect raw attributes and comment data in dedicated modals in the standard interface
-- Auto-refresh the latest feed with at most two retries, pause polling in background tabs, and refresh immediately on return
+- Auto-refresh the latest feed with 100 items on first load, manual refresh, and return from a hidden page before 24 hours; use 30 items for in-window timers; retry each request at most twice; keep refreshing a merely unfocused but visible window, and require manual refresh after 24 hours hidden
+- Preserve a scroll anchor around 25% from the top of the viewport during refresh; in both standard and minimal modes, the 100-item limit preserves the anchor, returns to the latest top if it is evicted, and stays at the bottom when already there or when the anchor is the last item; removing the limit uses unlimited-feed behavior without forced exact middle/bottom restoration
 - Render third-party feed text as text and allow only HTTP(S) image and document URLs
 - Open `/legacy` for a compact, text-first timeline with a 100-item default limit; it omits per-item comments and original links, and its bottom control removes the limit and unlocks item-limit adjustment until leaving minimal mode or refreshing
 

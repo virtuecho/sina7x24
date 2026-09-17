@@ -75,6 +75,7 @@ export function createViewerCore() {
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
         let refreshAnchor = null;
+        let refreshAnchorInvalidated = false;
         let scrollCaptureFrame = null;
         let pendingRefreshPageSize = null;
         let hiddenSince = document.hidden ? Date.now() : null;
@@ -462,11 +463,9 @@ export function createViewerCore() {
 
             if (!refreshPaused) {
                 fetchData(SINA_INITIAL_PAGE_SIZE, { manual: true });
-                startAutoRefresh();
                 scheduleHistoryLoadCheck();
-            } else {
-                startAutoRefresh();
             }
+            startAutoRefresh();
         }
 
         function updateRefreshButtonAvailability() {
@@ -651,9 +650,14 @@ export function createViewerCore() {
         }
 
         function invalidateRefreshAnchor() {
+            invalidateRefreshAnchorFor({ skipRestore: false });
+        }
+
+        function invalidateRefreshAnchorFor({ skipRestore = false } = {}) {
             if (!isRefreshing) return;
 
             refreshAnchor = null;
+            refreshAnchorInvalidated = refreshAnchorInvalidated || skipRestore;
             if (scrollCaptureFrame !== null) {
                 window.cancelAnimationFrame(scrollCaptureFrame);
                 scrollCaptureFrame = null;
@@ -661,10 +665,12 @@ export function createViewerCore() {
         }
 
         function scrollToTop() {
+            invalidateRefreshAnchorFor({ skipRestore: true });
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function scrollToBottom() {
+            invalidateRefreshAnchorFor({ skipRestore: true });
             window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
 
             scheduleHistoryLoadCheck();
@@ -830,19 +836,8 @@ export function createViewerCore() {
                 .map(element => ({ element, rect: element.getBoundingClientRect() }))
                 .filter(({ rect }) => rect.bottom > 0 && rect.top < window.innerHeight);
             const anchorEntry = visibleItems.find(({ rect }) => rect.top <= anchorLine && rect.bottom > anchorLine)
-                || visibleItems.reduce((closest, current) => {
-                    if (!closest) return current;
-
-                    const closestDistance = Math.min(
-                        Math.abs(closest.rect.top - anchorLine),
-                        Math.abs(closest.rect.bottom - anchorLine)
-                    );
-                    const currentDistance = Math.min(
-                        Math.abs(current.rect.top - anchorLine),
-                        Math.abs(current.rect.bottom - anchorLine)
-                    );
-                    return currentDistance < closestDistance ? current : closest;
-                }, null);
+                || visibleItems.find(({ rect }) => rect.top > anchorLine)
+                || visibleItems[visibleItems.length - 1];
 
             const anchorElement = anchorEntry?.element;
 
@@ -876,12 +871,10 @@ export function createViewerCore() {
             const anchorElement = Array.from(contentList.querySelectorAll('.content-item'))
                 .find(element => String(element.dataset.id) === anchor.id);
 
-            if (!anchorElement && itemLimitEnabled) {
+            if (!anchorElement) {
                 window.scrollTo(0, 0);
                 return;
             }
-
-            if (!anchorElement) return;
 
             const delta = anchorElement.getBoundingClientRect().top - anchor.top;
             if (Math.abs(delta) > 0.5) {
@@ -911,12 +904,15 @@ export function createViewerCore() {
             try {
                 isRefreshing = true;
                 refreshAnchor = initialScrollAnchor;
+                refreshAnchorInvalidated = false;
                 setRefreshingState(true);
                 showGlobalLoading();
                 hideError();
                 
                 const data = await fetchLatestData(requestedPageSize);
-                const currentScrollAnchor = captureScrollAnchor() || refreshAnchor;
+                const currentScrollAnchor = refreshAnchorInvalidated
+                    ? null
+                    : captureScrollAnchor() || refreshAnchor;
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
                 restoreScrollAnchor(currentScrollAnchor);
@@ -931,6 +927,11 @@ export function createViewerCore() {
             } finally {
                 isRefreshing = false;
                 refreshAnchor = null;
+                refreshAnchorInvalidated = false;
+                if (scrollCaptureFrame !== null) {
+                    window.cancelAnimationFrame(scrollCaptureFrame);
+                    scrollCaptureFrame = null;
+                }
                 setRefreshingState(false);
                 hideGlobalLoading();
                 scheduleHistoryLoadCheck();
