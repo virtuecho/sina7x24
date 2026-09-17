@@ -35,6 +35,9 @@ export function createViewerCore() {
         const MAX_FETCH_RETRIES = 2;
         const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 60000;
         const ITEM_LIMIT_COUNT = 100;
+        const MAX_BACKGROUND_GAP_MS = 24 * 60 * 60 * 1000;
+        const TOP_SCROLL_TOLERANCE = 16;
+        const BOTTOM_SCROLL_TOLERANCE = 24;
         const MINIMAL_MODE_STORAGE_KEY = 'sina7x24-minimal-mode';
         const HISTORY_VISIBILITY_MARGIN = 220;
         const STICKY_PANEL_MAX_WIDTH = 820;
@@ -71,6 +74,12 @@ export function createViewerCore() {
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
+        let refreshAnchor = null;
+        let refreshAnchorInvalidated = false;
+        let scrollCaptureFrame = null;
+        let pendingRefreshPageSize = null;
+        let hiddenSince = document.hidden ? Date.now() : null;
+        let refreshRequiresManual = false;
         let modalTrigger = null;
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         // Stable DOM references owned by the page shell
@@ -137,7 +146,7 @@ export function createViewerCore() {
             updateFocusFilterButton();
             updateRefreshControls();
             updateItemLimitButton();
-            fetchData();
+            fetchData(SINA_INITIAL_PAGE_SIZE);
             setupEventListeners();
             startAutoRefresh();
             updateStickyPanelState();
@@ -149,6 +158,7 @@ export function createViewerCore() {
         // Set up event listeners
         function setupEventListeners() {
             searchInput.addEventListener('input', function() {
+                invalidateRefreshAnchor();
                 currentSearch = this.value.toLowerCase();
                 filterContent();
             });
@@ -158,13 +168,17 @@ export function createViewerCore() {
             });
             
             typeFilter.addEventListener('change', function() {
+                invalidateRefreshAnchor();
                 currentType = this.value;
                 filterContent();
             });
 
             focusFilterBtn.addEventListener('click', toggleFocusFilter);
             
-            refreshBtn.addEventListener('click', fetchData);
+            refreshBtn.addEventListener('click', () => {
+                fetchData(SINA_INITIAL_PAGE_SIZE, { manual: true });
+                startAutoRefresh();
+            });
             developerModeBtn.addEventListener('click', toggleDeveloperMode);
             titleModeBtn.addEventListener('click', toggleTitleMode);
             sourceModeBtn.addEventListener('click', toggleSourceMode);
@@ -179,7 +193,7 @@ export function createViewerCore() {
             latestRefreshToggleBtn.addEventListener('click', toggleRefreshPaused);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
             document.addEventListener('visibilitychange', handleVisibilityChange);
-            window.addEventListener('scroll', updateStickyPanelState, { passive: true });
+            window.addEventListener('scroll', handleWindowScroll, { passive: true });
             window.addEventListener('resize', updateStickyPanelState);
             if (window.addEventListener) {
                 window.addEventListener('popstate', handleMinimalModeRouteChange, false);
@@ -255,6 +269,7 @@ export function createViewerCore() {
         }
 
         function applyMinimalMode() {
+            invalidateRefreshAnchor();
             document.body.classList.toggle('minimal-mode', minimalModeEnabled);
             updateMinimalModeButton();
             syncMinimalModeItemLimit();
@@ -342,6 +357,7 @@ export function createViewerCore() {
         function toggleTitleMode() {
             showStandaloneTitle = !showStandaloneTitle;
             updateTitleModeButton();
+            invalidateRefreshAnchor();
             filterContent();
         }
 
@@ -361,6 +377,7 @@ export function createViewerCore() {
         function toggleSourceMode() {
             showStandaloneSource = !showStandaloneSource;
             updateSourceModeButton();
+            invalidateRefreshAnchor();
             filterContent();
         }
 
@@ -380,6 +397,7 @@ export function createViewerCore() {
         function toggleFocusFilter() {
             focusFilterEnabled = !focusFilterEnabled;
             updateFocusFilterButton();
+            invalidateRefreshAnchor();
             filterContent();
         }
 
@@ -442,18 +460,20 @@ export function createViewerCore() {
             updateRefreshControls();
             updateRefreshButtonAvailability();
             updateHistoryStatus();
-            startAutoRefresh();
 
             if (!refreshPaused) {
-                fetchData();
+                fetchData(SINA_INITIAL_PAGE_SIZE, { manual: true });
                 scheduleHistoryLoadCheck();
             }
+            startAutoRefresh();
         }
 
         function updateRefreshButtonAvailability() {
             const isDisabled = isRefreshing || refreshPaused;
             const tooltip = refreshPaused
                 ? '数据刷新已暂停'
+                : refreshRequiresManual
+                ? '页面已离开超过24小时；请手动刷新'
                 : '立即拉取最新消息';
 
             refreshBtn.disabled = isDisabled;
@@ -598,6 +618,7 @@ export function createViewerCore() {
             }
 
             updateStats();
+            invalidateRefreshAnchor();
             filterContent();
             updateHistoryStatus();
         }
@@ -609,16 +630,47 @@ export function createViewerCore() {
             itemLimitEnabled = false;
             updateItemLimitButton();
             updateStats();
+            invalidateRefreshAnchor();
             filterContent();
             updateHistoryStatus();
             loadOlderPage();
         }
 
+        function handleWindowScroll() {
+            updateStickyPanelState();
+
+            if (!isRefreshing || scrollCaptureFrame !== null) return;
+
+            scrollCaptureFrame = window.requestAnimationFrame(() => {
+                scrollCaptureFrame = null;
+                if (isRefreshing) {
+                    refreshAnchor = captureScrollAnchor();
+                }
+            });
+        }
+
+        function invalidateRefreshAnchor() {
+            invalidateRefreshAnchorFor({ skipRestore: false });
+        }
+
+        function invalidateRefreshAnchorFor({ skipRestore = false } = {}) {
+            if (!isRefreshing) return;
+
+            refreshAnchor = null;
+            refreshAnchorInvalidated = refreshAnchorInvalidated || skipRestore;
+            if (scrollCaptureFrame !== null) {
+                window.cancelAnimationFrame(scrollCaptureFrame);
+                scrollCaptureFrame = null;
+            }
+        }
+
         function scrollToTop() {
+            invalidateRefreshAnchorFor({ skipRestore: true });
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function scrollToBottom() {
+            invalidateRefreshAnchorFor({ skipRestore: true });
             window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
 
             scheduleHistoryLoadCheck();
@@ -688,21 +740,182 @@ export function createViewerCore() {
                 }
             }
         }
+
+        function isValidFeedResponse(data) {
+            return data?.result?.status?.code === 0
+                && data?.result?.data?.feed;
+        }
+
+        function replaceFeedItems(data, items) {
+            return {
+                ...data,
+                result: {
+                    ...data.result,
+                    data: {
+                        ...data.result.data,
+                        feed: {
+                            ...data.result.data.feed,
+                            list: items
+                        }
+                    }
+                }
+            };
+        }
+
+        function isLoadedItem(item) {
+            const id = item?.id;
+            const numericId = Number(id);
+            return (id !== undefined && id !== null && itemsById.has(id))
+                || (Number.isFinite(numericId) && itemsById.has(numericId));
+        }
+
+        async function fetchLatestPagesUntilOverlap(baseData, baseItems, pageSize) {
+            const combinedItems = [...baseItems];
+            let page = 1;
+            let data = baseData;
+
+            while (true) {
+                const feed = data.result.data.feed;
+                const pageItems = Array.isArray(feed.list) ? feed.list : [];
+                const hasOverlap = pageItems.some(isLoadedItem);
+
+                const pageInfo = feed.page_info;
+                const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
+                const reachedEnd = pageItems.length < pageSize
+                    || !Number.isFinite(lastPage)
+                    || page >= lastPage;
+
+                if (hasOverlap || reachedEnd) {
+                    return replaceFeedItems(baseData, combinedItems);
+                }
+
+                page += 1;
+                data = await fetchJson(buildApiUrl(page, pageSize), {
+                    page,
+                    purpose: 'latest catch-up'
+                });
+
+                if (!isValidFeedResponse(data)) {
+                    throw new Error('最新消息补齐失败：接口返回的数据格式不正确');
+                }
+
+                combinedItems.push(...(Array.isArray(data.result.data.feed.list)
+                    ? data.result.data.feed.list
+                    : []));
+            }
+        }
+
+        async function fetchLatestData(pageSize = SINA_PAGE_SIZE) {
+            const latestData = await fetchJson(buildApiUrl(1, pageSize), {
+                page: 1,
+                purpose: 'latest'
+            });
+
+            if (isFirstLoad || allItems.length === 0 || !isValidFeedResponse(latestData)) {
+                return latestData;
+            }
+
+            const latestItems = Array.isArray(latestData.result.data.feed.list)
+                ? latestData.result.data.feed.list
+                : [];
+            const hasLoadedItem = latestItems.some(isLoadedItem);
+
+            if (hasLoadedItem) {
+                return latestData;
+            }
+
+            // More than one page arrived since the last refresh. Keep loading
+            // latest pages until one overlaps the locally known feed.
+            return fetchLatestPagesUntilOverlap(latestData, latestItems, pageSize);
+        }
+
+        function captureScrollAnchor() {
+            const contentItems = Array.from(contentList.querySelectorAll('.content-item'));
+            const anchorLine = window.innerHeight * 0.25;
+            const visibleItems = contentItems
+                .map(element => ({ element, rect: element.getBoundingClientRect() }))
+                .filter(({ rect }) => rect.bottom > 0 && rect.top < window.innerHeight);
+            const anchorEntry = visibleItems.find(({ rect }) => rect.top <= anchorLine && rect.bottom > anchorLine)
+                || visibleItems.find(({ rect }) => rect.top > anchorLine)
+                || visibleItems[visibleItems.length - 1];
+
+            const anchorElement = anchorEntry?.element;
+
+            if (!anchorElement) return null;
+
+            return {
+                id: String(anchorElement.dataset.id),
+                top: anchorEntry.rect.top,
+                isLastItem: anchorElement === contentItems[contentItems.length - 1],
+                isAtTop: window.scrollY <= TOP_SCROLL_TOLERANCE,
+                isAtBottom: document.documentElement.scrollHeight - window.innerHeight - window.scrollY <= BOTTOM_SCROLL_TOLERANCE
+            };
+        }
+
+        function restoreScrollAnchor(anchor) {
+            if (!anchor) return;
+
+            if (anchor.isAtTop) {
+                window.scrollTo(0, 0);
+                return;
+            }
+
+            if (itemLimitEnabled && (anchor.isAtBottom || anchor.isLastItem)) {
+                const nextScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                window.scrollTo(0, nextScrollY);
+                return;
+            }
+
+            if (!itemLimitEnabled) return;
+
+            const anchorElement = Array.from(contentList.querySelectorAll('.content-item'))
+                .find(element => String(element.dataset.id) === anchor.id);
+
+            if (!anchorElement) {
+                window.scrollTo(0, 0);
+                return;
+            }
+
+            const delta = anchorElement.getBoundingClientRect().top - anchor.top;
+            if (Math.abs(delta) > 0.5) {
+                window.scrollBy(0, delta);
+            }
+        }
         
         // Fetch data
-        async function fetchData() {
+        async function fetchData(pageSize = SINA_PAGE_SIZE, { manual = false } = {}) {
+            if (manual) {
+                refreshRequiresManual = false;
+            }
+
             if (isRefreshing || refreshPaused) return;
+            if (refreshRequiresManual) return;
+
+            if (isLoadingMore) {
+                pendingRefreshPageSize = Math.max(pendingRefreshPageSize || 0, pageSize);
+                return;
+            }
+
+            const requestedPageSize = Math.max(pageSize, pendingRefreshPageSize || 0);
+            pendingRefreshPageSize = null;
+
+            const initialScrollAnchor = captureScrollAnchor();
 
             try {
                 isRefreshing = true;
+                refreshAnchor = initialScrollAnchor;
+                refreshAnchorInvalidated = false;
                 setRefreshingState(true);
                 showGlobalLoading();
                 hideError();
                 
-                const latestPageSize = isFirstLoad ? SINA_INITIAL_PAGE_SIZE : SINA_PAGE_SIZE;
-                const data = await fetchJson(buildApiUrl(1, latestPageSize), { page: 1, purpose: 'latest' });
+                const data = await fetchLatestData(requestedPageSize);
+                const currentScrollAnchor = refreshAnchorInvalidated
+                    ? null
+                    : captureScrollAnchor() || refreshAnchor;
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
+                restoreScrollAnchor(currentScrollAnchor);
             } catch (error) {
                 if (isFirstLoad) {
                     totalItemsEl.textContent = '—';
@@ -713,8 +926,15 @@ export function createViewerCore() {
                 showError(`获取数据失败：${error.message}。请确认本地代理服务正在运行，并稍后重试。`);
             } finally {
                 isRefreshing = false;
+                refreshAnchor = null;
+                refreshAnchorInvalidated = false;
+                if (scrollCaptureFrame !== null) {
+                    window.cancelAnimationFrame(scrollCaptureFrame);
+                    scrollCaptureFrame = null;
+                }
                 setRefreshingState(false);
                 hideGlobalLoading();
+                scheduleHistoryLoadCheck();
             }
         }
         
@@ -1673,6 +1893,8 @@ export function createViewerCore() {
                 parts.push('已到接口当前可提供的最旧内容');
             } else if (refreshPaused) {
                 parts.push('数据刷新已暂停');
+            } else if (refreshRequiresManual) {
+                parts.push('页面已离开超过24小时，请手动刷新');
             } else if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
                 parts.push(`已限制最多 ${ITEM_LIMIT_COUNT} 条`);
             }
@@ -1699,26 +1921,41 @@ export function createViewerCore() {
 
         function handleVisibilityChange() {
             if (document.hidden) {
+                hiddenSince = Date.now();
                 stopAutoRefresh();
                 return;
             }
 
-            fetchData();
+            const hiddenDuration = hiddenSince === null ? 0 : Date.now() - hiddenSince;
+            hiddenSince = null;
+
+            // Deliberately do not use window blur/focus: an unfocused but visible
+            // desktop window should keep its normal in-window refresh cadence.
+            if (hiddenDuration >= MAX_BACKGROUND_GAP_MS) {
+                refreshRequiresManual = true;
+                stopAutoRefresh();
+                updateRefreshButtonAvailability();
+                updateHistoryStatus();
+                showError('页面已离开超过24小时，未自动追赶新闻；请手动刷新。');
+                return;
+            }
+
+            fetchData(SINA_INITIAL_PAGE_SIZE);
             startAutoRefresh();
         }
 
         function startAutoRefresh() {
             stopAutoRefresh();
-            if (refreshPaused || document.hidden) {
+            if (refreshPaused || document.hidden || refreshRequiresManual) {
                 return;
             }
 
-            refreshInterval = setInterval(fetchData, autoRefreshIntervalMs);
+            refreshInterval = setInterval(() => fetchData(SINA_PAGE_SIZE), autoRefreshIntervalMs);
         }
 
         // Load older pages when scrolling down
         async function loadOlderPage() {
-            if (refreshPaused || isFirstLoad || isLoadingMore || !hasMorePages) return;
+            if (refreshPaused || isFirstLoad || isLoadingMore || isRefreshing || !hasMorePages) return;
             if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
                 updateHistoryStatus();
                 return;
@@ -1728,23 +1965,44 @@ export function createViewerCore() {
             updateHistoryStatus({ loading: true });
             
             try {
-                const nextPage = currentPage + 1;
-                // Keep history pagination aligned with the initial page window.
-                const data = await fetchJson(buildApiUrl(nextPage, SINA_HISTORY_PAGE_SIZE), { page: nextPage, purpose: 'history' });
-                const result = processData(data, { page: nextPage, mode: 'append' });
-                
-                currentPage = nextPage;
+                let nextPage = currentPage + 1;
 
-                if (result.rawItems.length === 0 || result.addedItems.length === 0) {
-                    hasMorePages = false;
-                    updateHistoryStatus({ exhausted: true });
-                } else {
-                    updateHistoryStatus();
+                while (true) {
+                    // Keep history pagination aligned with the initial page window.
+                    const data = await fetchJson(buildApiUrl(nextPage, SINA_HISTORY_PAGE_SIZE), { page: nextPage, purpose: 'history' });
+                    const result = processData(data, { page: nextPage, mode: 'append' });
+                    const pageInfo = result.pageInfo;
+                    const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
+
+                    currentPage = nextPage;
+
+                    const reachedEnd = result.rawItems.length === 0
+                        || !Number.isFinite(lastPage)
+                        || nextPage >= lastPage;
+
+                    if (reachedEnd) {
+                        hasMorePages = false;
+                        updateHistoryStatus({ exhausted: true });
+                        break;
+                    }
+
+                    if (result.addedItems.length > 0) {
+                        updateHistoryStatus();
+                        break;
+                    }
+
+                    nextPage += 1;
                 }
             } catch (error) {
                 updateHistoryStatus({ error: `加载失败：${error.message}` });
             } finally {
                 isLoadingMore = false;
+
+                const queuedPageSize = pendingRefreshPageSize;
+                pendingRefreshPageSize = null;
+                if (queuedPageSize !== null && !refreshPaused && !document.hidden) {
+                    fetchData(queuedPageSize);
+                }
             }
         }
 
