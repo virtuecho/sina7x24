@@ -27,7 +27,9 @@ export function createViewerCore() {
         // Use the local same-origin proxy instead of public CORS relay services.
         const API_BASE = '/api/zhibo/feed';
         const API_DEFAULT_PARAMS = 'zhibo_id=152&id=&tag_id=0&type=0';
-        const SINA_PAGE_SIZE = 100;
+        const SINA_PAGE_SIZE = 30;
+        const SINA_INITIAL_PAGE_SIZE = 100;
+        const SINA_HISTORY_PAGE_SIZE = 100;
         const REQUEST_TIMEOUT = 10000;
         const RETRY_DELAY_MS = 1200;
         const MAX_FETCH_RETRIES = 2;
@@ -135,7 +137,7 @@ export function createViewerCore() {
             updateFocusFilterButton();
             updateRefreshControls();
             updateItemLimitButton();
-            fetchData();
+            fetchData(SINA_INITIAL_PAGE_SIZE);
             setupEventListeners();
             startAutoRefresh();
             updateStickyPanelState();
@@ -162,7 +164,7 @@ export function createViewerCore() {
 
             focusFilterBtn.addEventListener('click', toggleFocusFilter);
             
-            refreshBtn.addEventListener('click', fetchData);
+            refreshBtn.addEventListener('click', () => fetchData(SINA_INITIAL_PAGE_SIZE));
             developerModeBtn.addEventListener('click', toggleDeveloperMode);
             titleModeBtn.addEventListener('click', toggleTitleMode);
             sourceModeBtn.addEventListener('click', toggleSourceMode);
@@ -443,7 +445,7 @@ export function createViewerCore() {
             startAutoRefresh();
 
             if (!refreshPaused) {
-                fetchData();
+                fetchData(SINA_INITIAL_PAGE_SIZE);
                 scheduleHistoryLoadCheck();
             }
         }
@@ -715,7 +717,7 @@ export function createViewerCore() {
                 || (Number.isFinite(numericId) && itemsById.has(numericId));
         }
 
-        async function fetchLatestPagesUntilOverlap(baseData, baseItems) {
+        async function fetchLatestPagesUntilOverlap(baseData, baseItems, pageSize) {
             const combinedItems = [...baseItems];
             let page = 1;
             let data = baseData;
@@ -727,7 +729,7 @@ export function createViewerCore() {
 
                 const pageInfo = feed.page_info;
                 const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
-                const reachedEnd = pageItems.length < SINA_PAGE_SIZE
+                const reachedEnd = pageItems.length < pageSize
                     || !Number.isFinite(lastPage)
                     || page >= lastPage;
 
@@ -736,7 +738,7 @@ export function createViewerCore() {
                 }
 
                 page += 1;
-                data = await fetchJson(buildApiUrl(page, SINA_PAGE_SIZE), {
+                data = await fetchJson(buildApiUrl(page, pageSize), {
                     page,
                     purpose: 'latest catch-up'
                 });
@@ -751,8 +753,8 @@ export function createViewerCore() {
             }
         }
 
-        async function fetchLatestData() {
-            const latestData = await fetchJson(buildApiUrl(1, SINA_PAGE_SIZE), {
+        async function fetchLatestData(pageSize = SINA_PAGE_SIZE) {
+            const latestData = await fetchJson(buildApiUrl(1, pageSize), {
                 page: 1,
                 purpose: 'latest'
             });
@@ -772,7 +774,7 @@ export function createViewerCore() {
 
             // More than one page arrived since the last refresh. Keep loading
             // latest pages until one overlaps the locally known feed.
-            return fetchLatestPagesUntilOverlap(latestData, latestItems);
+            return fetchLatestPagesUntilOverlap(latestData, latestItems, pageSize);
         }
 
         function captureScrollAnchor() {
@@ -820,7 +822,7 @@ export function createViewerCore() {
         }
         
         // Fetch data
-        async function fetchData() {
+        async function fetchData(pageSize = SINA_PAGE_SIZE) {
             if (isRefreshing || refreshPaused) return;
 
             const scrollAnchor = captureScrollAnchor();
@@ -831,7 +833,7 @@ export function createViewerCore() {
                 showGlobalLoading();
                 hideError();
                 
-                const data = await fetchLatestData();
+                const data = await fetchLatestData(pageSize);
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
                 restoreScrollAnchor(scrollAnchor);
@@ -1835,7 +1837,7 @@ export function createViewerCore() {
                 return;
             }
 
-            fetchData();
+            fetchData(SINA_INITIAL_PAGE_SIZE);
             startAutoRefresh();
         }
 
@@ -1845,7 +1847,7 @@ export function createViewerCore() {
                 return;
             }
 
-            refreshInterval = setInterval(fetchData, autoRefreshIntervalMs);
+            refreshInterval = setInterval(() => fetchData(SINA_PAGE_SIZE), autoRefreshIntervalMs);
         }
 
         // Load older pages when scrolling down
@@ -1864,7 +1866,7 @@ export function createViewerCore() {
 
                 while (true) {
                     // Keep history pagination aligned with the initial page window.
-                    const data = await fetchJson(buildApiUrl(nextPage, SINA_PAGE_SIZE), { page: nextPage, purpose: 'history' });
+                    const data = await fetchJson(buildApiUrl(nextPage, SINA_HISTORY_PAGE_SIZE), { page: nextPage, purpose: 'history' });
                     const result = processData(data, { page: nextPage, mode: 'append' });
                     const pageInfo = result.pageInfo;
                     const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
