@@ -71,7 +71,7 @@ export function createViewerCore() {
         let autoRefreshIntervalMs = DEFAULT_AUTO_REFRESH_INTERVAL_MS;
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
-        let scrollInteractionVersion = 0;
+        let refreshAnchor = null;
         let modalTrigger = null;
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         // Stable DOM references owned by the page shell
@@ -180,9 +180,7 @@ export function createViewerCore() {
             latestRefreshToggleBtn.addEventListener('click', toggleRefreshPaused);
             scrollBottomBtn.addEventListener('click', scrollToBottom);
             document.addEventListener('visibilitychange', handleVisibilityChange);
-            window.addEventListener('wheel', markScrollInteraction, { passive: true });
-            window.addEventListener('touchmove', markScrollInteraction, { passive: true });
-            window.addEventListener('scroll', updateStickyPanelState, { passive: true });
+            window.addEventListener('scroll', handleWindowScroll, { passive: true });
             window.addEventListener('resize', updateStickyPanelState);
             if (window.addEventListener) {
                 window.addEventListener('popstate', handleMinimalModeRouteChange, false);
@@ -617,17 +615,18 @@ export function createViewerCore() {
             loadOlderPage();
         }
 
-        function markScrollInteraction() {
-            scrollInteractionVersion += 1;
+        function handleWindowScroll() {
+            if (isRefreshing) {
+                refreshAnchor = captureScrollAnchor();
+            }
+            updateStickyPanelState();
         }
 
         function scrollToTop() {
-            markScrollInteraction();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function scrollToBottom() {
-            markScrollInteraction();
             window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
 
             scheduleHistoryLoadCheck();
@@ -803,52 +802,49 @@ export function createViewerCore() {
             };
         }
 
-        function restoreScrollAnchor(anchor, expectedScrollInteractionVersion) {
-            if (!anchor || expectedScrollInteractionVersion !== scrollInteractionVersion) return;
+        function restoreScrollAnchor(anchor) {
+            if (!anchor) return;
 
-            window.requestAnimationFrame(() => {
-                if (expectedScrollInteractionVersion !== scrollInteractionVersion) return;
+            if (itemLimitEnabled && anchor.isLastItem) {
+                const nextScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                window.scrollTo(0, nextScrollY);
+                return;
+            }
 
-                if (itemLimitEnabled && anchor.isLastItem) {
-                    const nextScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-                    window.scrollTo(0, nextScrollY);
-                    return;
-                }
+            const anchorElement = Array.from(contentList.querySelectorAll('.content-item'))
+                .find(element => String(element.dataset.id) === anchor.id);
 
-                const anchorElement = Array.from(contentList.querySelectorAll('.content-item'))
-                    .find(element => String(element.dataset.id) === anchor.id);
+            if (!anchorElement && itemLimitEnabled) {
+                window.scrollTo(0, 0);
+                return;
+            }
 
-                if (!anchorElement && itemLimitEnabled) {
-                    window.scrollTo(0, 0);
-                    return;
-                }
+            if (!anchorElement) return;
 
-                if (!anchorElement) return;
-
-                const delta = anchorElement.getBoundingClientRect().top - anchor.top;
-                if (Math.abs(delta) > 0.5) {
-                    window.scrollBy(0, delta);
-                }
-            });
+            const delta = anchorElement.getBoundingClientRect().top - anchor.top;
+            if (Math.abs(delta) > 0.5) {
+                window.scrollBy(0, delta);
+            }
         }
         
         // Fetch data
         async function fetchData(pageSize = SINA_PAGE_SIZE) {
             if (isRefreshing || refreshPaused) return;
 
-            const scrollAnchor = captureScrollAnchor();
-            const expectedScrollInteractionVersion = scrollInteractionVersion;
+            const initialScrollAnchor = captureScrollAnchor();
 
             try {
                 isRefreshing = true;
+                refreshAnchor = initialScrollAnchor;
                 setRefreshingState(true);
                 showGlobalLoading();
                 hideError();
                 
                 const data = await fetchLatestData(pageSize);
+                const currentScrollAnchor = captureScrollAnchor() || refreshAnchor;
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
-                restoreScrollAnchor(scrollAnchor, expectedScrollInteractionVersion);
+                restoreScrollAnchor(currentScrollAnchor);
             } catch (error) {
                 if (isFirstLoad) {
                     totalItemsEl.textContent = '—';
@@ -859,6 +855,7 @@ export function createViewerCore() {
                 showError(`获取数据失败：${error.message}。请确认本地代理服务正在运行，并稍后重试。`);
             } finally {
                 isRefreshing = false;
+                refreshAnchor = null;
                 setRefreshingState(false);
                 hideGlobalLoading();
             }
