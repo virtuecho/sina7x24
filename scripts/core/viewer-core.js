@@ -35,6 +35,9 @@ export function createViewerCore() {
         const MAX_FETCH_RETRIES = 2;
         const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 60000;
         const ITEM_LIMIT_COUNT = 100;
+        const MAX_BACKGROUND_GAP_MS = 24 * 60 * 60 * 1000;
+        const TOP_SCROLL_TOLERANCE = 16;
+        const BOTTOM_SCROLL_TOLERANCE = 24;
         const MINIMAL_MODE_STORAGE_KEY = 'sina7x24-minimal-mode';
         const HISTORY_VISIBILITY_MARGIN = 220;
         const STICKY_PANEL_MAX_WIDTH = 820;
@@ -72,6 +75,10 @@ export function createViewerCore() {
         let stickyPanelPinnedOpen = false;
         let isRefreshing = false;
         let refreshAnchor = null;
+        let scrollCaptureFrame = null;
+        let pendingRefreshPageSize = null;
+        let hiddenSince = document.hidden ? Date.now() : null;
+        let refreshRequiresManual = false;
         let modalTrigger = null;
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         // Stable DOM references owned by the page shell
@@ -150,6 +157,7 @@ export function createViewerCore() {
         // Set up event listeners
         function setupEventListeners() {
             searchInput.addEventListener('input', function() {
+                invalidateRefreshAnchor();
                 currentSearch = this.value.toLowerCase();
                 filterContent();
             });
@@ -159,13 +167,17 @@ export function createViewerCore() {
             });
             
             typeFilter.addEventListener('change', function() {
+                invalidateRefreshAnchor();
                 currentType = this.value;
                 filterContent();
             });
 
             focusFilterBtn.addEventListener('click', toggleFocusFilter);
             
-            refreshBtn.addEventListener('click', () => fetchData(SINA_INITIAL_PAGE_SIZE));
+            refreshBtn.addEventListener('click', () => {
+                fetchData(SINA_INITIAL_PAGE_SIZE, { manual: true });
+                startAutoRefresh();
+            });
             developerModeBtn.addEventListener('click', toggleDeveloperMode);
             titleModeBtn.addEventListener('click', toggleTitleMode);
             sourceModeBtn.addEventListener('click', toggleSourceMode);
@@ -256,6 +268,7 @@ export function createViewerCore() {
         }
 
         function applyMinimalMode() {
+            invalidateRefreshAnchor();
             document.body.classList.toggle('minimal-mode', minimalModeEnabled);
             updateMinimalModeButton();
             syncMinimalModeItemLimit();
@@ -343,6 +356,7 @@ export function createViewerCore() {
         function toggleTitleMode() {
             showStandaloneTitle = !showStandaloneTitle;
             updateTitleModeButton();
+            invalidateRefreshAnchor();
             filterContent();
         }
 
@@ -362,6 +376,7 @@ export function createViewerCore() {
         function toggleSourceMode() {
             showStandaloneSource = !showStandaloneSource;
             updateSourceModeButton();
+            invalidateRefreshAnchor();
             filterContent();
         }
 
@@ -381,6 +396,7 @@ export function createViewerCore() {
         function toggleFocusFilter() {
             focusFilterEnabled = !focusFilterEnabled;
             updateFocusFilterButton();
+            invalidateRefreshAnchor();
             filterContent();
         }
 
@@ -443,11 +459,13 @@ export function createViewerCore() {
             updateRefreshControls();
             updateRefreshButtonAvailability();
             updateHistoryStatus();
-            startAutoRefresh();
 
             if (!refreshPaused) {
-                fetchData(SINA_INITIAL_PAGE_SIZE);
+                fetchData(SINA_INITIAL_PAGE_SIZE, { manual: true });
+                startAutoRefresh();
                 scheduleHistoryLoadCheck();
+            } else {
+                startAutoRefresh();
             }
         }
 
@@ -455,6 +473,8 @@ export function createViewerCore() {
             const isDisabled = isRefreshing || refreshPaused;
             const tooltip = refreshPaused
                 ? '数据刷新已暂停'
+                : refreshRequiresManual
+                ? '页面已离开超过24小时；请手动刷新'
                 : '立即拉取最新消息';
 
             refreshBtn.disabled = isDisabled;
@@ -599,6 +619,7 @@ export function createViewerCore() {
             }
 
             updateStats();
+            invalidateRefreshAnchor();
             filterContent();
             updateHistoryStatus();
         }
@@ -610,16 +631,33 @@ export function createViewerCore() {
             itemLimitEnabled = false;
             updateItemLimitButton();
             updateStats();
+            invalidateRefreshAnchor();
             filterContent();
             updateHistoryStatus();
             loadOlderPage();
         }
 
         function handleWindowScroll() {
-            if (isRefreshing) {
-                refreshAnchor = captureScrollAnchor();
-            }
             updateStickyPanelState();
+
+            if (!isRefreshing || scrollCaptureFrame !== null) return;
+
+            scrollCaptureFrame = window.requestAnimationFrame(() => {
+                scrollCaptureFrame = null;
+                if (isRefreshing) {
+                    refreshAnchor = captureScrollAnchor();
+                }
+            });
+        }
+
+        function invalidateRefreshAnchor() {
+            if (!isRefreshing) return;
+
+            refreshAnchor = null;
+            if (scrollCaptureFrame !== null) {
+                window.cancelAnimationFrame(scrollCaptureFrame);
+                scrollCaptureFrame = null;
+            }
         }
 
         function scrollToTop() {
@@ -787,29 +825,53 @@ export function createViewerCore() {
 
         function captureScrollAnchor() {
             const contentItems = Array.from(contentList.querySelectorAll('.content-item'));
-            const visibleItems = contentItems.filter(element => {
-                const rect = element.getBoundingClientRect();
-                return rect.bottom > 0 && rect.top < window.innerHeight;
-            });
-            const anchorElement = visibleItems[visibleItems.length - 1];
+            const anchorLine = window.innerHeight * 0.25;
+            const visibleItems = contentItems
+                .map(element => ({ element, rect: element.getBoundingClientRect() }))
+                .filter(({ rect }) => rect.bottom > 0 && rect.top < window.innerHeight);
+            const anchorEntry = visibleItems.find(({ rect }) => rect.top <= anchorLine && rect.bottom > anchorLine)
+                || visibleItems.reduce((closest, current) => {
+                    if (!closest) return current;
+
+                    const closestDistance = Math.min(
+                        Math.abs(closest.rect.top - anchorLine),
+                        Math.abs(closest.rect.bottom - anchorLine)
+                    );
+                    const currentDistance = Math.min(
+                        Math.abs(current.rect.top - anchorLine),
+                        Math.abs(current.rect.bottom - anchorLine)
+                    );
+                    return currentDistance < closestDistance ? current : closest;
+                }, null);
+
+            const anchorElement = anchorEntry?.element;
 
             if (!anchorElement) return null;
 
             return {
                 id: String(anchorElement.dataset.id),
-                top: anchorElement.getBoundingClientRect().top,
-                isLastItem: anchorElement === contentItems[contentItems.length - 1]
+                top: anchorEntry.rect.top,
+                isLastItem: anchorElement === contentItems[contentItems.length - 1],
+                isAtTop: window.scrollY <= TOP_SCROLL_TOLERANCE,
+                isAtBottom: document.documentElement.scrollHeight - window.innerHeight - window.scrollY <= BOTTOM_SCROLL_TOLERANCE
             };
         }
 
         function restoreScrollAnchor(anchor) {
             if (!anchor) return;
 
-            if (itemLimitEnabled && anchor.isLastItem) {
+            if (anchor.isAtTop) {
+                window.scrollTo(0, 0);
+                return;
+            }
+
+            if (itemLimitEnabled && (anchor.isAtBottom || anchor.isLastItem)) {
                 const nextScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
                 window.scrollTo(0, nextScrollY);
                 return;
             }
+
+            if (!itemLimitEnabled) return;
 
             const anchorElement = Array.from(contentList.querySelectorAll('.content-item'))
                 .find(element => String(element.dataset.id) === anchor.id);
@@ -828,8 +890,21 @@ export function createViewerCore() {
         }
         
         // Fetch data
-        async function fetchData(pageSize = SINA_PAGE_SIZE) {
+        async function fetchData(pageSize = SINA_PAGE_SIZE, { manual = false } = {}) {
+            if (manual) {
+                refreshRequiresManual = false;
+            }
+
             if (isRefreshing || refreshPaused) return;
+            if (refreshRequiresManual) return;
+
+            if (isLoadingMore) {
+                pendingRefreshPageSize = Math.max(pendingRefreshPageSize || 0, pageSize);
+                return;
+            }
+
+            const requestedPageSize = Math.max(pageSize, pendingRefreshPageSize || 0);
+            pendingRefreshPageSize = null;
 
             const initialScrollAnchor = captureScrollAnchor();
 
@@ -840,7 +915,7 @@ export function createViewerCore() {
                 showGlobalLoading();
                 hideError();
                 
-                const data = await fetchLatestData(pageSize);
+                const data = await fetchLatestData(requestedPageSize);
                 const currentScrollAnchor = captureScrollAnchor() || refreshAnchor;
                 processData(data, { page: 1, mode: 'prepend' });
                 updateHistoryStatus();
@@ -858,6 +933,7 @@ export function createViewerCore() {
                 refreshAnchor = null;
                 setRefreshingState(false);
                 hideGlobalLoading();
+                scheduleHistoryLoadCheck();
             }
         }
         
@@ -1816,6 +1892,8 @@ export function createViewerCore() {
                 parts.push('已到接口当前可提供的最旧内容');
             } else if (refreshPaused) {
                 parts.push('数据刷新已暂停');
+            } else if (refreshRequiresManual) {
+                parts.push('页面已离开超过24小时，请手动刷新');
             } else if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
                 parts.push(`已限制最多 ${ITEM_LIMIT_COUNT} 条`);
             }
@@ -1842,7 +1920,22 @@ export function createViewerCore() {
 
         function handleVisibilityChange() {
             if (document.hidden) {
+                hiddenSince = Date.now();
                 stopAutoRefresh();
+                return;
+            }
+
+            const hiddenDuration = hiddenSince === null ? 0 : Date.now() - hiddenSince;
+            hiddenSince = null;
+
+            // Deliberately do not use window blur/focus: an unfocused but visible
+            // desktop window should keep its normal in-window refresh cadence.
+            if (hiddenDuration >= MAX_BACKGROUND_GAP_MS) {
+                refreshRequiresManual = true;
+                stopAutoRefresh();
+                updateRefreshButtonAvailability();
+                updateHistoryStatus();
+                showError('页面已离开超过24小时，未自动追赶新闻；请手动刷新。');
                 return;
             }
 
@@ -1852,7 +1945,7 @@ export function createViewerCore() {
 
         function startAutoRefresh() {
             stopAutoRefresh();
-            if (refreshPaused || document.hidden) {
+            if (refreshPaused || document.hidden || refreshRequiresManual) {
                 return;
             }
 
@@ -1861,7 +1954,7 @@ export function createViewerCore() {
 
         // Load older pages when scrolling down
         async function loadOlderPage() {
-            if (refreshPaused || isFirstLoad || isLoadingMore || !hasMorePages) return;
+            if (refreshPaused || isFirstLoad || isLoadingMore || isRefreshing || !hasMorePages) return;
             if (itemLimitEnabled && allItems.length >= ITEM_LIMIT_COUNT) {
                 updateHistoryStatus();
                 return;
@@ -1903,6 +1996,12 @@ export function createViewerCore() {
                 updateHistoryStatus({ error: `加载失败：${error.message}` });
             } finally {
                 isLoadingMore = false;
+
+                const queuedPageSize = pendingRefreshPageSize;
+                pendingRefreshPageSize = null;
+                if (queuedPageSize !== null && !refreshPaused && !document.hidden) {
+                    fetchData(queuedPageSize);
+                }
             }
         }
 
