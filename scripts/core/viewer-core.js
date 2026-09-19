@@ -1,4 +1,15 @@
 export const MAX_PAGINATION_PAGES = 100;
+export const MAX_AUTO_REFRESH_SECONDS = 24 * 60 * 60;
+
+export function normalizeAutoRefreshSeconds(value) {
+    const seconds = Number(value);
+
+    if (!Number.isFinite(seconds) || seconds < 1 || seconds > MAX_AUTO_REFRESH_SECONDS) {
+        return null;
+    }
+
+    return Math.round(seconds);
+}
 
 export function createPaginationGuard({ maxPages = MAX_PAGINATION_PAGES } = {}) {
     const pageFingerprints = new Set();
@@ -454,16 +465,17 @@ export function createViewerCore() {
             const seconds = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
             const tooltip = `当前每 ${seconds} 秒自动刷新一次`;
 
+            refreshSecondsInput.max = String(MAX_AUTO_REFRESH_SECONDS);
             refreshSecondsInput.value = String(seconds);
             applyRefreshSecondsBtn.setAttribute('title', tooltip);
             applyRefreshSecondsBtn.setAttribute('aria-label', tooltip);
         }
 
         function applyAutoRefreshInterval() {
-            const nextSeconds = Number(refreshSecondsInput.value);
+            const nextSeconds = normalizeAutoRefreshSeconds(refreshSecondsInput.value);
 
-            if (!Number.isFinite(nextSeconds) || nextSeconds < 1) {
-                showError('自动刷新秒数至少需要 1 秒。');
+            if (nextSeconds === null) {
+                showError(`自动刷新秒数需要在 1 到 ${MAX_AUTO_REFRESH_SECONDS} 秒之间（最多24小时）。`);
                 updateRefreshIntervalControls();
                 return;
             }
