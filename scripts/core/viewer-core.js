@@ -1047,17 +1047,15 @@ export function createViewerCore() {
                 } else {
                     // Filter new items based on current criteria
                     const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType, focusFilterEnabled);
-                    if (filteredNewItems.length > 0) {
+                    if (updatedItems.length > 0) {
+                        // An update can change whether an existing item matches the filters.
+                        filterContent();
+                    } else if (filteredNewItems.length > 0) {
                         if (mode === 'prepend') {
                             renderNewItems(filteredNewItems);
                         } else {
                             renderOlderItems(filteredNewItems);
                         }
-                    }
-                    
-                    // Update existing items
-                    if (updatedItems.length > 0) {
-                        updateExistingItems(updatedItems);
                     }
                 }
 
@@ -1233,25 +1231,6 @@ export function createViewerCore() {
             });
         }
         
-        // Update existing items
-        function updateExistingItems(items) {
-            items.forEach(item => {
-                const existingElement = document.querySelector(`.content-item[data-id="${item.id}"]`);
-                if (existingElement) {
-                    // Replace the entire element
-                    const newElement = createElementFromHTML(createContentItem(item));
-                    existingElement.parentNode.replaceChild(newElement, existingElement);
-                }
-            });
-        }
-        
-        // Create element from HTML string
-        function createElementFromHTML(htmlString) {
-            const div = document.createElement('div');
-            div.innerHTML = htmlString.trim();
-            return div.firstChild;
-        }
-
         const DEFAULT_COMMENT_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%23e2e8f0"/><circle cx="22" cy="17" r="8" fill="%2394a3b8"/><path d="M9 37c2.8-7 9.4-10 13-10s10.2 3 13 10" fill="%2394a3b8"/></svg>';
 
         // Create a single content item
