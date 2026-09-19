@@ -11,6 +11,29 @@ export function normalizeAutoRefreshSeconds(value) {
     return Math.round(seconds);
 }
 
+export function getSearchableTextParts(item) {
+    const tags = Array.isArray(item?.tag) ? item.tag : [];
+    const comments = Array.isArray(item?.comment_list?.list) ? item.comment_list.list : [];
+
+    return [
+        item?.rich_text,
+        String(item?.id ?? ''),
+        item?.create_time,
+        ...tags.flatMap(tag => [tag?.id, tag?.name]),
+        ...comments.flatMap(comment => [
+            comment?.nick,
+            comment?.content,
+            comment?.text,
+            comment?.area,
+            comment?.time,
+            comment?.usertype,
+            comment?.agree,
+            comment?.rank,
+            comment?.uid
+        ])
+    ].filter(Boolean);
+}
+
 export function createPaginationGuard({ maxPages = MAX_PAGINATION_PAGES } = {}) {
     const pageFingerprints = new Set();
     const safeMaxPages = Number.isFinite(maxPages)
@@ -1185,18 +1208,20 @@ export function createViewerCore() {
         function filterItemsByCriteria(items, searchText, selectedType, requireFocus = false) {
             return items.filter(item => {
                 const matchesSearch = getSearchableText(item).includes(searchText);
-                const commentTotal = Number(item.comment_list?.total) || 0;
-                const returnedCommentCount = Array.isArray(item.comment_list?.list) ? item.comment_list.list.length : 0;
+                const tags = Array.isArray(item?.tag) ? item.tag : [];
+                const comments = Array.isArray(item?.comment_list?.list) ? item.comment_list.list : [];
+                const commentTotal = Number(item?.comment_list?.total) || 0;
+                const returnedCommentCount = comments.length;
                 const hasComments = commentTotal > 0 || returnedCommentCount > 0;
-                const originalText = typeof item.rich_text === 'string' ? item.rich_text : '';
+                const originalText = typeof item?.rich_text === 'string' ? item.rich_text : '';
                 const headlineParts = extractHeadlineParts(originalText);
                 const sourceParts = extractTrailingSource(headlineParts.body || originalText);
                 const hasSource = Boolean(sourceParts.source);
-                const isFocusItem = item.tag.some(t => String(t?.id) === '9' || String(t?.name || '').trim() === '焦点');
+                const isFocusItem = tags.some(t => String(t?.id) === '9' || String(t?.name || '').trim() === '焦点');
                 const matchesType = selectedType === 'all'
                     || (selectedType === 'has-comments' && hasComments)
                     || (selectedType === 'has-source' && hasSource)
-                    || item.tag.some(t => t.id.toString() === selectedType);
+                    || tags.some(t => String(t?.id ?? '') === selectedType);
                 const matchesFocusFilter = !requireFocus || isFocusItem;
                 return matchesSearch && matchesType && matchesFocusFilter;
             });
@@ -1235,12 +1260,13 @@ export function createViewerCore() {
 
         // Create a single content item
         function createContentItem(item) {
+            const tags = Array.isArray(item?.tag) ? item.tag : [];
             const docUrl = minimalModeEnabled ? '' : getDocUrl(item);
             const hasDocUrl = Boolean(docUrl);
             const buttonClass = hasDocUrl ? 'action-btn' : 'action-btn disabled';
             
             // Check whether to highlight (ID is 9)
-            const isHighlight = item.tag.some(t => t.id == 9);
+            const isHighlight = tags.some(t => t?.id == 9);
             const textClass = isHighlight ? 'content-text highlight-text' : 'content-text';
             const titleClass = isHighlight ? 'content-title highlight-text' : 'content-title';
             const displayParts = getDisplayTextParts(item.rich_text);
@@ -1290,7 +1316,7 @@ export function createViewerCore() {
                     ${mediaHtml}
                     <div class="content-footer">
                         <div class="content-tags">
-                            ${item.tag.map(t => `<span class="tag">${escapeHtml(t.name)}</span>`).join('')}
+                            ${tags.map(t => `<span class="tag">${escapeHtml(t?.name ?? '')}</span>`).join('')}
                         </div>
                         <div class="content-actions">
                             <button class="action-btn copy-btn" data-action="copy" title="复制这条新闻原文" aria-label="复制这条新闻原文">
@@ -1819,19 +1845,16 @@ export function createViewerCore() {
         }
 
         function getItemDateKey(item) {
-            const date = parseApiTime(item.create_time);
+            const date = parseApiTime(item?.create_time);
             return date ? formatDateKey(date) : '';
         }
 
         function getSearchableText(item) {
             return [
-                item.rich_text,
-                String(item.id ?? ''),
-                item.create_time,
-                formatTime(item.create_time),
+                ...getSearchableTextParts(item),
+                formatTime(item?.create_time),
                 getItemDateKey(item)
             ]
-                .filter(Boolean)
                 .join(' ')
                 .toLowerCase();
         }
