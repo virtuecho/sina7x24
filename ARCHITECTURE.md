@@ -124,11 +124,13 @@ flowchart TD
 
 The searchable representation includes:
 
-- item content, message ID, time, and source;
+- the full item rich text, including source text embedded in that content;
+- message ID and time values, including the raw API time, formatted local time, and YYYY-MM-DD date key;
 - tag IDs and names;
-- comment nicknames, text, area, user IDs, timestamps, agreement counts, and ranks.
 
-Tag and comment collections are read only when they are arrays. Unexpected upstream values are treated as empty collections so malformed optional data cannot abort filtering or rendering.
+Text search lowercases both the indexed text and the input, then performs a literal substring match. It has no field prefixes or boolean operators. Comment nicknames, text, area, user IDs, timestamps, agreement counts, and ranks are intentionally not indexed. Comment data remains available for rendering, the comments modal, and the separate has-comments type filter.
+
+Tags are read only when the tag collection is an array. Unexpected tag values are treated as an empty collection so malformed optional data cannot abort filtering or rendering.
 
 The same normalized item is used for type filters, text search, rendering, and comment display. This keeps the visible card and the search result based on the same upstream record.
 
@@ -239,8 +241,8 @@ The test suite focuses on rules that can regress without a browser:
 
 - pagination stops on empty, stalled, repeated, and excessive pages;
 - automatic refresh interval bounds are enforced;
-- tags and comment fields are included in search;
-- malformed optional arrays do not break search indexing.
+- tags are included in search while comment fields are excluded;
+- malformed tag arrays do not break search indexing.
 
 Run the suite with:
 

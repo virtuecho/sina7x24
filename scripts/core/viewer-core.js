@@ -13,24 +13,12 @@ export function normalizeAutoRefreshSeconds(value) {
 
 export function getSearchableTextParts(item) {
     const tags = Array.isArray(item?.tag) ? item.tag : [];
-    const comments = Array.isArray(item?.comment_list?.list) ? item.comment_list.list : [];
 
     return [
         item?.rich_text,
         String(item?.id ?? ''),
         item?.create_time,
-        ...tags.flatMap(tag => [tag?.id, tag?.name]),
-        ...comments.flatMap(comment => [
-            comment?.nick,
-            comment?.content,
-            comment?.text,
-            comment?.area,
-            comment?.time,
-            comment?.usertype,
-            comment?.agree,
-            comment?.rank,
-            comment?.uid
-        ])
+        ...tags.flatMap(tag => [tag?.id, tag?.name])
     ].filter(Boolean);
 }
 

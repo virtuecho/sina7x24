@@ -8,7 +8,7 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 
 - Browse the live feed from the standard page at /.
 - Open /legacy for a compact, text-first timeline.
-- Search and filter by article text, message ID, time, source, tags, and comment fields.
+- Search and filter by article text, message ID, time, and tags. A separate filter can show items that have comments.
 - Load older news while scrolling.
 - Refresh the latest news automatically or on demand.
 - Preserve a useful reading position while the latest feed changes.
@@ -18,6 +18,19 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 The viewer continues loading older pages even when the upstream page totals are unreliable. It stops safely when the upstream returns an empty page, stops advancing, repeats a page, or exceeds the per-request safety limit.
 
 The optional 100-item limit keeps the newest items and preserves the reading anchor. Removing the limit reloads history from the first older page and deduplicates by message ID.
+
+## Search
+
+The search field performs a case-insensitive literal substring match. Enter plain text; there are no field prefixes or boolean operators.
+
+It searches:
+
+- the full article text, including source text embedded in the article;
+- the message ID;
+- the original API timestamp, displayed local time, and YYYY-MM-DD date;
+- tag IDs and tag names.
+
+Examples include 5102090, 18:43, 2026-09-18, or a tag name. Comment text, nicknames, locations, and other comment fields are not included in text search.
 
 ## Requirements
 
