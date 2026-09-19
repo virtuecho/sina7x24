@@ -51,14 +51,14 @@ flowchart LR
 
 `scripts/core/viewer-core.js` owns:
 
-- feed fetching, merging, filtering, rendering, and history loading
+- feed fetching, merging, filtering, rendering, search indexing, and history loading
 - third-party text escaping and HTTP(S)-only image and document URLs
 - standard and minimal display modes, controls, and statistics
 - attribute and comment modals
 
 #### Viewer lifecycle
 
-Both routes use the same viewer core. The route and stored preference select the display mode, then the core attaches controls, requests the initial 100-item window, renders it, and starts the normal timer when the page is visible.
+Both routes use the same viewer core. The route and stored preference select the display mode, then the core attaches controls, requests the initial 100-item window, renders it, and starts the normal timer when the page is visible. The user-configured refresh interval is bounded to 1 second through 24 hours.
 
 ```mermaid
 flowchart TD
@@ -81,7 +81,7 @@ Route changes use the browser History API and reapply the same core state; they 
 
 #### Mode and item-limit transitions
 
-Minimal mode temporarily owns the item-limit state. Entering minimal mode remembers the standard-mode setting and forces the 100-item window. Its bottom control removes that limit and permits older-page loading. Leaving minimal mode restores the remembered standard-mode setting.
+Minimal mode temporarily owns the item-limit state. Entering minimal mode remembers the standard-mode setting and forces the 100-item window. When trimming removes loaded history, the core resets the history cursor to page 1 and reopens history loading. Its bottom control removes that limit and starts older-page loading from page 2, where ID deduplication preserves the overlap without skipping items. Leaving minimal mode restores the remembered standard-mode setting.
 
 ```mermaid
 flowchart TD
@@ -104,7 +104,7 @@ The standard and minimal routes therefore share one rule: the 100-item limit ena
 
 #### Feed processing pipeline
 
-Every latest or history response passes through the same merge path. Items are deduplicated by ID, normalized to descending ID order, optionally trimmed to 100, then either rerendered or incrementally updated.
+Every latest or history response passes through the same merge path. Items are deduplicated by ID, normalized to descending ID order, optionally trimmed to 100, then either fully rerendered or incrementally updated. If an existing item changes, the filtered list is rerendered so changes to searchable content, tags, or comments can add or remove the card from the current result.
 
 ```mermaid
 flowchart TD
@@ -117,9 +117,9 @@ flowchart TD
   F -->|"No"| H["Keep merged order"]
   G --> I["Enforce optional 100-item limit"]
   H --> I
-  I --> J{"Initial load, trim, or order change?"}
+  I --> J{"Initial load, trim, order change, or existing update?"}
   J -->|"Yes"| K["Filter and rerender the visible list"]
-  J -->|"No"| L["Render added matches and update changed cards"]
+  J -->|"No"| L["Render added matches incrementally"]
   K --> M["Update stats and history status"]
   L --> M
 ```
@@ -128,7 +128,7 @@ This shared path is why latest refresh and history pagination cannot silently ma
 
 #### History pagination
 
-The history sentinel asks for the next 100-item page only when the viewer is ready: it is not on the first load, another request is not active, refresh is not paused, the feed is not exhausted, and the 100-item limit has not already been reached. Empty or duplicate pages are skipped until new content appears or the upstream end is reached.
+The history sentinel asks for the next 100-item page only when the viewer is ready: it is not on the first load, another request is not active, refresh is not paused, the feed is not exhausted, and the 100-item limit has not already been reached. The client does not trust the upstream total-page metadata. Empty pages are the normal end signal; a shared pagination guard also stops when the response page stops advancing, an ID fingerprint repeats, or 100 pages have been inspected in one catch-up. Non-identical pages with no new IDs are skipped while the guard still shows forward progress.
 
 ```mermaid
 flowchart TD
@@ -136,12 +136,12 @@ flowchart TD
   B -->|"No"| C["Wait for the current state to change"]
   B -->|"Yes"| D["Request next history page: 100 items"]
   D --> E["Merge and deduplicate by ID"]
-  E --> F{"New items added?"}
-  F -->|"Yes"| G["Update the list and history status"]
-  F -->|"No"| H{"Reached upstream end?"}
-  H -->|"No"| D
-  H -->|"Yes"| I["Mark history as exhausted"]
-  G --> J["Observe the sentinel again"]
+  E --> F{"Empty page or guard stop?"}
+  F -->|"Yes"| I["Stop history loading and show the reason"]
+  F -->|"No"| G{"New items added?"}
+  G -->|"Yes"| H["Update the list and history status"]
+  G -->|"No"| D
+  H --> J["Observe the sentinel again"]
   C --> J
 ```
 
@@ -188,9 +188,9 @@ The implementation stays in `scripts/core/viewer-core.js`. The policy is deliber
 | Manual refresh | 100 | Clear the manual-refresh gate and catch up. |
 | Return from a hidden page before 24 hours | 100 | Catch up through later pages until one overlaps locally loaded items. |
 | Return after 24 hours hidden | 0 automatically | Do not perform an unbounded catch-up; show that manual refresh is required. |
-| History pagination | 100 | Load older content using the same page window as the initial feed. |
+| History pagination | 100 | Load older content using the same page window as the initial feed; guard against stalled, repeated, or excessive pagination. |
 
-Each request is allowed two retries after the initial attempt. `document.hidden` is the only background signal: a window that is merely unfocused or covered remains visible and continues its normal 30-item timer.
+Each request is allowed two retries after the initial attempt. The user-configured timer accepts 1–86,400 seconds and therefore stays below the browser timer overflow boundary. The page hidden state is the only background signal: a window that is merely unfocused or covered remains visible and continues its normal 30-item timer.
 
 ```mermaid
 flowchart TD
@@ -211,7 +211,7 @@ flowchart TD
   K --> C
 ```
 
-Latest catch-up starts with page 1. If it has no overlap with locally known items, the viewer requests subsequent latest pages until it finds overlap or reaches the upstream end. This prevents a quiet page-size boundary from silently dropping news.
+Latest catch-up starts with page 1. If it has no overlap with locally known items, the viewer requests subsequent latest pages until it finds overlap or an empty page. It uses the same pagination guard as history loading, so a stalled response page, repeated ID fingerprint, or 100-page safety limit stops the catch-up instead of trusting unreliable upstream page totals. This prevents both quiet page-size boundaries and clamped page numbers from silently causing an unbounded request loop.
 
 #### Anchor selection
 
@@ -289,7 +289,7 @@ sequenceDiagram
 
 #### Complexity boundary
 
-The state variables correspond directly to observable requirements: in-flight refresh/history guards, the dynamic anchor and its animation-frame capture, a queued page size, hidden-time tracking, and the 24-hour manual gate. No speculative abstraction is warranted until another independent feed or list needs the same behavior. The Mermaid diagrams are source-maintained documentation; no generated image asset is needed.
+The state variables correspond directly to observable requirements: in-flight refresh/history guards, the shared pagination guard, the dynamic anchor and its animation-frame capture, a queued page size, hidden-time tracking, and the 24-hour manual gate. Search indexing treats malformed tag and comment arrays as empty. Built-in Node tests cover pagination termination, refresh bounds, and search fields; npm audit --omit=dev checks the production lockfile. No speculative abstraction is warranted until another independent feed or list needs the same behavior. The Mermaid diagrams are source-maintained documentation; no generated image asset is needed.
 
 ### 3. Bootstrap
 
