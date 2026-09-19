@@ -1061,10 +1061,10 @@ export function createViewerCore() {
                     }
                 }
 
-                return { addedItems, updatedItems, rawItems: newItems, pageInfo };
+                return { addedItems, updatedItems, rawItems: newItems, pageInfo, trimmedCount };
             } else {
                 showError('API返回的数据格式不正确');
-                return { addedItems: [], updatedItems: [], rawItems: [], pageInfo: null };
+                return { addedItems: [], updatedItems: [], rawItems: [], pageInfo: null, trimmedCount: 0 };
             }
         }
 
@@ -1178,6 +1178,8 @@ export function createViewerCore() {
                 itemsById.delete(item.id);
             });
 
+            currentPage = 1;
+            hasMorePages = true;
             return removedItems.length;
         }
         
@@ -2037,7 +2039,7 @@ export function createViewerCore() {
                     const data = await fetchJson(buildApiUrl(nextPage, SINA_HISTORY_PAGE_SIZE), { page: nextPage, purpose: 'history' });
                     const result = processData(data, { page: nextPage, mode: 'append' });
 
-                    currentPage = nextPage;
+                    currentPage = result.trimmedCount > 0 ? 1 : nextPage;
 
                     // Historical responses can return valid items with an incorrect
                     // relative lastPage. The empty page is the reliable end signal.
