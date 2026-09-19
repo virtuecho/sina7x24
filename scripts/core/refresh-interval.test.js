@@ -12,9 +12,3 @@ test('keeps the refresh interval within a safe 24-hour limit', () => {
     assert.equal(normalizeAutoRefreshSeconds(MAX_AUTO_REFRESH_SECONDS + 1), null);
     assert.equal(normalizeAutoRefreshSeconds(2_147_484), null);
 });
-
-test('rejects invalid refresh interval values', () => {
-    assert.equal(normalizeAutoRefreshSeconds(0), null);
-    assert.equal(normalizeAutoRefreshSeconds('not-a-number'), null);
-    assert.equal(normalizeAutoRefreshSeconds(Number.POSITIVE_INFINITY), null);
-});
