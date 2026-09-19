@@ -1,3 +1,86 @@
+export const MAX_PAGINATION_PAGES = 100;
+export const MAX_AUTO_REFRESH_SECONDS = 24 * 60 * 60;
+
+export function normalizeAutoRefreshSeconds(value) {
+    const seconds = Number(value);
+
+    if (!Number.isFinite(seconds) || seconds < 1 || seconds > MAX_AUTO_REFRESH_SECONDS) {
+        return null;
+    }
+
+    return Math.round(seconds);
+}
+
+export function getSearchableTextParts(item) {
+    const tags = Array.isArray(item?.tag) ? item.tag : [];
+    const comments = Array.isArray(item?.comment_list?.list) ? item.comment_list.list : [];
+
+    return [
+        item?.rich_text,
+        String(item?.id ?? ''),
+        item?.create_time,
+        ...tags.flatMap(tag => [tag?.id, tag?.name]),
+        ...comments.flatMap(comment => [
+            comment?.nick,
+            comment?.content,
+            comment?.text,
+            comment?.area,
+            comment?.time,
+            comment?.usertype,
+            comment?.agree,
+            comment?.rank,
+            comment?.uid
+        ])
+    ].filter(Boolean);
+}
+
+export function createPaginationGuard({ maxPages = MAX_PAGINATION_PAGES } = {}) {
+    const pageFingerprints = new Set();
+    const safeMaxPages = Number.isFinite(maxPages)
+        ? Math.max(1, Math.floor(maxPages))
+        : MAX_PAGINATION_PAGES;
+    let lastResponsePage = null;
+    let pagesSeen = 0;
+
+    return function inspectPagination({ requestedPage, responsePage, items = [] }) {
+        pagesSeen += 1;
+
+        const numericResponsePage = Number(responsePage);
+        const responsePageNotAdvanced = Number.isFinite(numericResponsePage)
+            && (lastResponsePage === null
+                ? numericResponsePage < requestedPage
+                : numericResponsePage <= lastResponsePage);
+        const pageFingerprint = items.length > 0
+            ? JSON.stringify(items.map(item => item?.id ?? null))
+            : null;
+        const fingerprintRepeated = pageFingerprint !== null
+            && pageFingerprints.has(pageFingerprint);
+        const maxPagesReached = pagesSeen >= safeMaxPages;
+
+        if (Number.isFinite(numericResponsePage)) {
+            lastResponsePage = numericResponsePage;
+        }
+        if (pageFingerprint !== null) {
+            pageFingerprints.add(pageFingerprint);
+        }
+
+        const reason = responsePageNotAdvanced
+            ? 'response-page-stalled'
+            : fingerprintRepeated
+            ? 'duplicate-page'
+            : maxPagesReached
+            ? 'max-pages'
+            : '';
+
+        return {
+            shouldStop: Boolean(reason),
+            reason,
+            fingerprintRepeated,
+            pagesSeen
+        };
+    };
+}
+
 export function escapeHtml(text) {
     return String(text ?? '')
         .replace(/&/g, '&amp;')
@@ -405,16 +488,17 @@ export function createViewerCore() {
             const seconds = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
             const tooltip = `当前每 ${seconds} 秒自动刷新一次`;
 
+            refreshSecondsInput.max = String(MAX_AUTO_REFRESH_SECONDS);
             refreshSecondsInput.value = String(seconds);
             applyRefreshSecondsBtn.setAttribute('title', tooltip);
             applyRefreshSecondsBtn.setAttribute('aria-label', tooltip);
         }
 
         function applyAutoRefreshInterval() {
-            const nextSeconds = Number(refreshSecondsInput.value);
+            const nextSeconds = normalizeAutoRefreshSeconds(refreshSecondsInput.value);
 
-            if (!Number.isFinite(nextSeconds) || nextSeconds < 1) {
-                showError('自动刷新秒数至少需要 1 秒。');
+            if (nextSeconds === null) {
+                showError(`自动刷新秒数需要在 1 到 ${MAX_AUTO_REFRESH_SECONDS} 秒之间（最多24小时）。`);
                 updateRefreshIntervalControls();
                 return;
             }
@@ -771,6 +855,7 @@ export function createViewerCore() {
 
         async function fetchLatestPagesUntilOverlap(baseData, baseItems, pageSize) {
             const combinedItems = [...baseItems];
+            const inspectPagination = createPaginationGuard();
             let page = 1;
             let data = baseData;
 
@@ -779,13 +864,14 @@ export function createViewerCore() {
                 const pageItems = Array.isArray(feed.list) ? feed.list : [];
                 const hasOverlap = pageItems.some(isLoadedItem);
 
-                const pageInfo = feed.page_info;
-                const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
-                const reachedEnd = pageItems.length < pageSize
-                    || !Number.isFinite(lastPage)
-                    || page >= lastPage;
+                const reachedEnd = pageItems.length === 0;
+                const paginationCheck = inspectPagination({
+                    requestedPage: page,
+                    responsePage: feed.page_info?.page,
+                    items: pageItems
+                });
 
-                if (hasOverlap || reachedEnd) {
+                if (hasOverlap || reachedEnd || paginationCheck.shouldStop) {
                     return replaceFeedItems(baseData, combinedItems);
                 }
 
@@ -799,9 +885,10 @@ export function createViewerCore() {
                     throw new Error('最新消息补齐失败：接口返回的数据格式不正确');
                 }
 
-                combinedItems.push(...(Array.isArray(data.result.data.feed.list)
+                const nextItems = Array.isArray(data.result.data.feed.list)
                     ? data.result.data.feed.list
-                    : []));
+                    : [];
+                combinedItems.push(...nextItems);
             }
         }
 
@@ -983,24 +1070,22 @@ export function createViewerCore() {
                 } else {
                     // Filter new items based on current criteria
                     const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType, focusFilterEnabled);
-                    if (filteredNewItems.length > 0) {
+                    if (updatedItems.length > 0) {
+                        // An update can change whether an existing item matches the filters.
+                        filterContent();
+                    } else if (filteredNewItems.length > 0) {
                         if (mode === 'prepend') {
                             renderNewItems(filteredNewItems);
                         } else {
                             renderOlderItems(filteredNewItems);
                         }
                     }
-                    
-                    // Update existing items
-                    if (updatedItems.length > 0) {
-                        updateExistingItems(updatedItems);
-                    }
                 }
 
-                return { addedItems, updatedItems, rawItems: newItems, pageInfo };
+                return { addedItems, updatedItems, rawItems: newItems, pageInfo, trimmedCount };
             } else {
                 showError('API返回的数据格式不正确');
-                return { addedItems: [], updatedItems: [], rawItems: [], pageInfo: null };
+                return { addedItems: [], updatedItems: [], rawItems: [], pageInfo: null, trimmedCount: 0 };
             }
         }
 
@@ -1114,6 +1199,8 @@ export function createViewerCore() {
                 itemsById.delete(item.id);
             });
 
+            currentPage = 1;
+            hasMorePages = true;
             return removedItems.length;
         }
         
@@ -1121,18 +1208,20 @@ export function createViewerCore() {
         function filterItemsByCriteria(items, searchText, selectedType, requireFocus = false) {
             return items.filter(item => {
                 const matchesSearch = getSearchableText(item).includes(searchText);
-                const commentTotal = Number(item.comment_list?.total) || 0;
-                const returnedCommentCount = Array.isArray(item.comment_list?.list) ? item.comment_list.list.length : 0;
+                const tags = Array.isArray(item?.tag) ? item.tag : [];
+                const comments = Array.isArray(item?.comment_list?.list) ? item.comment_list.list : [];
+                const commentTotal = Number(item?.comment_list?.total) || 0;
+                const returnedCommentCount = comments.length;
                 const hasComments = commentTotal > 0 || returnedCommentCount > 0;
-                const originalText = typeof item.rich_text === 'string' ? item.rich_text : '';
+                const originalText = typeof item?.rich_text === 'string' ? item.rich_text : '';
                 const headlineParts = extractHeadlineParts(originalText);
                 const sourceParts = extractTrailingSource(headlineParts.body || originalText);
                 const hasSource = Boolean(sourceParts.source);
-                const isFocusItem = item.tag.some(t => String(t?.id) === '9' || String(t?.name || '').trim() === '焦点');
+                const isFocusItem = tags.some(t => String(t?.id) === '9' || String(t?.name || '').trim() === '焦点');
                 const matchesType = selectedType === 'all'
                     || (selectedType === 'has-comments' && hasComments)
                     || (selectedType === 'has-source' && hasSource)
-                    || item.tag.some(t => t.id.toString() === selectedType);
+                    || tags.some(t => String(t?.id ?? '') === selectedType);
                 const matchesFocusFilter = !requireFocus || isFocusItem;
                 return matchesSearch && matchesType && matchesFocusFilter;
             });
@@ -1167,35 +1256,17 @@ export function createViewerCore() {
             });
         }
         
-        // Update existing items
-        function updateExistingItems(items) {
-            items.forEach(item => {
-                const existingElement = document.querySelector(`.content-item[data-id="${item.id}"]`);
-                if (existingElement) {
-                    // Replace the entire element
-                    const newElement = createElementFromHTML(createContentItem(item));
-                    existingElement.parentNode.replaceChild(newElement, existingElement);
-                }
-            });
-        }
-        
-        // Create element from HTML string
-        function createElementFromHTML(htmlString) {
-            const div = document.createElement('div');
-            div.innerHTML = htmlString.trim();
-            return div.firstChild;
-        }
-
         const DEFAULT_COMMENT_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%23e2e8f0"/><circle cx="22" cy="17" r="8" fill="%2394a3b8"/><path d="M9 37c2.8-7 9.4-10 13-10s10.2 3 13 10" fill="%2394a3b8"/></svg>';
 
         // Create a single content item
         function createContentItem(item) {
+            const tags = Array.isArray(item?.tag) ? item.tag : [];
             const docUrl = minimalModeEnabled ? '' : getDocUrl(item);
             const hasDocUrl = Boolean(docUrl);
             const buttonClass = hasDocUrl ? 'action-btn' : 'action-btn disabled';
             
             // Check whether to highlight (ID is 9)
-            const isHighlight = item.tag.some(t => t.id == 9);
+            const isHighlight = tags.some(t => t?.id == 9);
             const textClass = isHighlight ? 'content-text highlight-text' : 'content-text';
             const titleClass = isHighlight ? 'content-title highlight-text' : 'content-title';
             const displayParts = getDisplayTextParts(item.rich_text);
@@ -1245,7 +1316,7 @@ export function createViewerCore() {
                     ${mediaHtml}
                     <div class="content-footer">
                         <div class="content-tags">
-                            ${item.tag.map(t => `<span class="tag">${escapeHtml(t.name)}</span>`).join('')}
+                            ${tags.map(t => `<span class="tag">${escapeHtml(t?.name ?? '')}</span>`).join('')}
                         </div>
                         <div class="content-actions">
                             <button class="action-btn copy-btn" data-action="copy" title="复制这条新闻原文" aria-label="复制这条新闻原文">
@@ -1774,19 +1845,16 @@ export function createViewerCore() {
         }
 
         function getItemDateKey(item) {
-            const date = parseApiTime(item.create_time);
+            const date = parseApiTime(item?.create_time);
             return date ? formatDateKey(date) : '';
         }
 
         function getSearchableText(item) {
             return [
-                item.rich_text,
-                String(item.id ?? ''),
-                item.create_time,
-                formatTime(item.create_time),
+                ...getSearchableTextParts(item),
+                formatTime(item?.create_time),
                 getItemDateKey(item)
             ]
-                .filter(Boolean)
                 .join(' ')
                 .toLowerCase();
         }
@@ -1966,23 +2034,33 @@ export function createViewerCore() {
             
             try {
                 let nextPage = currentPage + 1;
+                const inspectPagination = createPaginationGuard();
 
                 while (true) {
                     // Keep history pagination aligned with the initial page window.
                     const data = await fetchJson(buildApiUrl(nextPage, SINA_HISTORY_PAGE_SIZE), { page: nextPage, purpose: 'history' });
                     const result = processData(data, { page: nextPage, mode: 'append' });
-                    const pageInfo = result.pageInfo;
-                    const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
 
-                    currentPage = nextPage;
+                    currentPage = result.trimmedCount > 0 ? 1 : nextPage;
 
-                    const reachedEnd = result.rawItems.length === 0
-                        || !Number.isFinite(lastPage)
-                        || nextPage >= lastPage;
+                    // Historical responses can return valid items with an incorrect
+                    // relative lastPage. The empty page is the reliable end signal.
+                    const reachedEnd = result.rawItems.length === 0;
+                    const paginationCheck = inspectPagination({
+                        requestedPage: nextPage,
+                        responsePage: data.result?.data?.feed?.page_info?.page,
+                        items: result.rawItems
+                    });
 
                     if (reachedEnd) {
                         hasMorePages = false;
                         updateHistoryStatus({ exhausted: true });
+                        break;
+                    }
+
+                    if (paginationCheck.shouldStop) {
+                        hasMorePages = false;
+                        updateHistoryStatus({ error: '历史分页已停止：' + paginationCheck.reason });
                         break;
                     }
 

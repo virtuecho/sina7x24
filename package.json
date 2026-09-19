@@ -6,7 +6,8 @@
   "description": "Serve the Sina 7x24 viewer through a same-origin proxy.",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
