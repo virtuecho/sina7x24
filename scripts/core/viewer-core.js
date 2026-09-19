@@ -1,3 +1,52 @@
+export const MAX_PAGINATION_PAGES = 100;
+
+export function createPaginationGuard({ maxPages = MAX_PAGINATION_PAGES } = {}) {
+    const pageFingerprints = new Set();
+    const safeMaxPages = Number.isFinite(maxPages)
+        ? Math.max(1, Math.floor(maxPages))
+        : MAX_PAGINATION_PAGES;
+    let lastResponsePage = null;
+    let pagesSeen = 0;
+
+    return function inspectPagination({ requestedPage, responsePage, items = [] }) {
+        pagesSeen += 1;
+
+        const numericResponsePage = Number(responsePage);
+        const responsePageNotAdvanced = Number.isFinite(numericResponsePage)
+            && (lastResponsePage === null
+                ? numericResponsePage < requestedPage
+                : numericResponsePage <= lastResponsePage);
+        const pageFingerprint = items.length > 0
+            ? JSON.stringify(items.map(item => item?.id ?? null))
+            : null;
+        const fingerprintRepeated = pageFingerprint !== null
+            && pageFingerprints.has(pageFingerprint);
+        const maxPagesReached = pagesSeen >= safeMaxPages;
+
+        if (Number.isFinite(numericResponsePage)) {
+            lastResponsePage = numericResponsePage;
+        }
+        if (pageFingerprint !== null) {
+            pageFingerprints.add(pageFingerprint);
+        }
+
+        const reason = responsePageNotAdvanced
+            ? 'response-page-stalled'
+            : fingerprintRepeated
+            ? 'duplicate-page'
+            : maxPagesReached
+            ? 'max-pages'
+            : '';
+
+        return {
+            shouldStop: Boolean(reason),
+            reason,
+            fingerprintRepeated,
+            pagesSeen
+        };
+    };
+}
+
 export function escapeHtml(text) {
     return String(text ?? '')
         .replace(/&/g, '&amp;')
@@ -771,6 +820,7 @@ export function createViewerCore() {
 
         async function fetchLatestPagesUntilOverlap(baseData, baseItems, pageSize) {
             const combinedItems = [...baseItems];
+            const inspectPagination = createPaginationGuard();
             let page = 1;
             let data = baseData;
 
@@ -780,8 +830,13 @@ export function createViewerCore() {
                 const hasOverlap = pageItems.some(isLoadedItem);
 
                 const reachedEnd = pageItems.length === 0;
+                const paginationCheck = inspectPagination({
+                    requestedPage: page,
+                    responsePage: feed.page_info?.page,
+                    items: pageItems
+                });
 
-                if (hasOverlap || reachedEnd) {
+                if (hasOverlap || reachedEnd || paginationCheck.shouldStop) {
                     return replaceFeedItems(baseData, combinedItems);
                 }
 
@@ -795,9 +850,10 @@ export function createViewerCore() {
                     throw new Error('最新消息补齐失败：接口返回的数据格式不正确');
                 }
 
-                combinedItems.push(...(Array.isArray(data.result.data.feed.list)
+                const nextItems = Array.isArray(data.result.data.feed.list)
                     ? data.result.data.feed.list
-                    : []));
+                    : [];
+                combinedItems.push(...nextItems);
             }
         }
 
@@ -1962,6 +2018,7 @@ export function createViewerCore() {
             
             try {
                 let nextPage = currentPage + 1;
+                const inspectPagination = createPaginationGuard();
 
                 while (true) {
                     // Keep history pagination aligned with the initial page window.
@@ -1973,10 +2030,21 @@ export function createViewerCore() {
                     // Historical responses can return valid items with an incorrect
                     // relative lastPage. The empty page is the reliable end signal.
                     const reachedEnd = result.rawItems.length === 0;
+                    const paginationCheck = inspectPagination({
+                        requestedPage: nextPage,
+                        responsePage: data.result?.data?.feed?.page_info?.page,
+                        items: result.rawItems
+                    });
 
                     if (reachedEnd) {
                         hasMorePages = false;
                         updateHistoryStatus({ exhausted: true });
+                        break;
+                    }
+
+                    if (paginationCheck.shouldStop) {
+                        hasMorePages = false;
+                        updateHistoryStatus({ error: '历史分页已停止：' + paginationCheck.reason });
                         break;
                     }
 
