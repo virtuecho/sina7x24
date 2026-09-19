@@ -779,11 +779,7 @@ export function createViewerCore() {
                 const pageItems = Array.isArray(feed.list) ? feed.list : [];
                 const hasOverlap = pageItems.some(isLoadedItem);
 
-                const pageInfo = feed.page_info;
-                const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
-                const reachedEnd = pageItems.length < pageSize
-                    || !Number.isFinite(lastPage)
-                    || page >= lastPage;
+                const reachedEnd = pageItems.length === 0;
 
                 if (hasOverlap || reachedEnd) {
                     return replaceFeedItems(baseData, combinedItems);
@@ -1971,14 +1967,12 @@ export function createViewerCore() {
                     // Keep history pagination aligned with the initial page window.
                     const data = await fetchJson(buildApiUrl(nextPage, SINA_HISTORY_PAGE_SIZE), { page: nextPage, purpose: 'history' });
                     const result = processData(data, { page: nextPage, mode: 'append' });
-                    const pageInfo = result.pageInfo;
-                    const lastPage = Number(pageInfo?.lastPage ?? pageInfo?.totalPage);
 
                     currentPage = nextPage;
 
-                    const reachedEnd = result.rawItems.length === 0
-                        || !Number.isFinite(lastPage)
-                        || nextPage >= lastPage;
+                    // Historical responses can return valid items with an incorrect
+                    // relative lastPage. The empty page is the reliable end signal.
+                    const reachedEnd = result.rawItems.length === 0;
 
                     if (reachedEnd) {
                         hasMorePages = false;
