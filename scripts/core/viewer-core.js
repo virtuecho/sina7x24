@@ -295,7 +295,7 @@ export function createViewerCore() {
         function updateSearchControls() {
             const hasSearch = searchInput.value.length > 0;
             clearSearchBtn.hidden = !hasSearch;
-            searchIcon.hidden = hasSearch;
+            searchIcon.hidden = false;
         }
 
         function clearSearch() {
