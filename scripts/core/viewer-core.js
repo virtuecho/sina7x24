@@ -129,6 +129,7 @@ export function createViewerCore() {
         let refreshInterval = null;
         let isFirstLoad = true;
         let currentSearch = '';
+        let isSearchComposing = false;
         let currentType = 'all';
         let focusFilterEnabled = false;
         let currentPage = 1;
@@ -228,9 +229,19 @@ export function createViewerCore() {
         
         // Set up event listeners
         function setupEventListeners() {
-            searchInput.addEventListener('input', function() {
-                invalidateRefreshAnchor();
+            searchInput.addEventListener('compositionstart', function() {
+                isSearchComposing = true;
+            });
+            searchInput.addEventListener('compositionend', function() {
+                isSearchComposing = false;
                 currentSearch = this.value.toLowerCase();
+                invalidateRefreshAnchor();
+                filterContent();
+            });
+            searchInput.addEventListener('input', function() {
+                currentSearch = this.value.toLowerCase();
+                if (isSearchComposing) return;
+                invalidateRefreshAnchor();
                 filterContent();
             });
             searchInput.addEventListener('focus', updateStickyPanelState);
