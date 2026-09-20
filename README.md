@@ -14,6 +14,7 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 - Preserve a useful reading position while the latest feed changes.
 - Keep existing news cards while search results change, so filtering does not rebuild the entire list.
 - Handle Chinese IME composition without filtering intermediate input.
+- Continue loading older pages while a search is active; non-matching cards remain hidden.
 - Inspect article attributes and comments in the standard interface.
 - Render upstream text safely and allow only HTTP(S) image and document links.
 
@@ -25,12 +26,16 @@ The optional 100-item limit keeps the newest items and preserves the reading anc
 
 The search field performs a case-insensitive literal substring match. Enter plain text; there are no field prefixes or boolean operators.
 
+The search control keeps the magnifying-glass icon on the left and shows an icon-only clear button on the right while the query is non-empty. Clearing the field restores the current unfiltered item list.
+
 It searches:
 
 - the full article text, including source text embedded in the article;
 - the message ID;
 - the original API timestamp, displayed local time, and YYYY-MM-DD date;
 - tag IDs and tag names.
+
+Search visibility does not stop history pagination. Scrolling continues to request older pages as usual, while items that do not match remain hidden.
 
 Examples include 5102090, 18:43, 2026-09-18, or a tag name.
 

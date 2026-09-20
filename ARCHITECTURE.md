@@ -143,6 +143,8 @@ The search input tracks IME composition separately. Intermediate composition inp
 
 Filtering evaluates the current item list and toggles hidden state on cached card elements. It does not replace the content list HTML. New items are appended or prepended as individual nodes, changed items replace only their own node, and order changes reuse the existing nodes. A full markup refresh is reserved for display-mode, title-mode, or source-mode changes.
 
+The search control keeps the magnifying-glass icon on the left and shows an icon-only clear button on the right while the query is non-empty. Clearing the field resets the query and reapplies the filter to the current item list.
+
 ```mermaid
 flowchart TD
   A["Search input"] --> B{"IME composition active"}
@@ -174,6 +176,8 @@ The guard is shared by latest catch-up and history loading. It prevents an upstr
 
 When item trimming resets the cursor, the next history request starts at page 2. The current page remains page 1 until that request succeeds, so a failed request cannot advance the cursor.
 
+Search visibility is not a history-pagination stop condition. A valid older page is accepted based on the response and pagination guards, not on whether it contains a visible search match. Non-matching cards remain in the cached list with hidden state. Because hidden cards do not move the sentinel, a successful history load schedules one additional sentinel check while the load area is still visible, keeping filtered pagination on the same request path as unfiltered scrolling.
+
 ```mermaid
 flowchart TD
   A["History sentinel"] --> B{"Load allowed"}
@@ -183,7 +187,7 @@ flowchart TD
   E --> F{"Empty, stalled, repeated, or over limit"}
   F -->|Yes| G["Stop history loading"]
   F -->|No| H["Merge and deduplicate"]
-  H --> I["Render and observe sentinel"]
+  H --> I["Filter, hide non-matches, and observe sentinel"]
   I --> D
   C --> A
 ```
