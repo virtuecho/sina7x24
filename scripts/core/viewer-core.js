@@ -802,6 +802,15 @@ export function createViewerCore() {
             });
         }
 
+        function scheduleNextHistoryLoadCheck() {
+            window.setTimeout(() => {
+                if (refreshPaused || isFirstLoad || isLoadingMore || !hasMorePages) return;
+                if (isHistoryLoadAreaVisible()) {
+                    loadOlderPage();
+                }
+            }, 0);
+        }
+
         // Fetch JSON with timeout and configurable retries.
         async function fetchJson(url, { page, purpose, maxRetries = MAX_FETCH_RETRIES } = {}) {
             const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
@@ -2163,6 +2172,10 @@ export function createViewerCore() {
                 pendingRefreshPageSize = null;
                 if (queuedPageSize !== null && !refreshPaused && !document.hidden) {
                     fetchData(queuedPageSize);
+                } else {
+                    // Hidden filtered cards do not move the sentinel. Recheck it once
+                    // so history pagination keeps the same behavior as an unfiltered list.
+                    scheduleNextHistoryLoadCheck();
                 }
             }
         }
