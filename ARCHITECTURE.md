@@ -103,7 +103,7 @@ Every accepted response follows this sequence:
       -> re-evaluate filters
       -> render and update status
 
-When an existing item changes, the visible result is filtered again. This allows a card to disappear when updated text, tags, or comments stop matching and allows it to appear when those fields begin matching. New matching cards may be inserted incrementally when a full rerender is unnecessary.
+When an existing item changes, its card is updated individually before the visible result is filtered again. This allows a card to disappear when updated text, tags, or comments stop matching and allows it to appear when those fields begin matching. New items create new cards; filtering reuses the existing card nodes and only toggles their hidden state.
 
 The optional item limit keeps the newest items. If trimming removes loaded history, the history cursor is reset to page 1 and history loading is reopened. Disabling the limit then starts from the first older page and relies on message-ID deduplication to preserve every item across the overlap.
 
@@ -113,11 +113,14 @@ flowchart TD
   B --> C["Merge by message ID"]
   C --> D["Sort newest first"]
   D --> E["Apply optional 100-item limit"]
-  E --> F{"Existing item changed or list shape changed"}
-  F -->|Yes| G["Filter and rerender"]
-  F -->|No| H["Render new matching cards"]
-  G --> I["Update status and statistics"]
-  H --> I
+  E --> F{"New, updated, or structural change"}
+  F -->|Updated| G["Replace only updated card nodes"]
+  F -->|New| H["Create only new card nodes"]
+  F -->|Order or trim| I["Reuse, move, or remove nodes"]
+  G --> J["Apply filters and toggle hidden state"]
+  H --> J
+  I --> J
+  J --> K["Update status and statistics"]
 ```
 
 ## Search and filters
@@ -128,11 +131,27 @@ The searchable representation includes:
 - message ID and time values, including the raw API time, formatted local time, and YYYY-MM-DD date key;
 - tag IDs and names;
 
-Text search lowercases both the indexed text and the input, then performs a literal substring match. It has no field prefixes or boolean operators. Comment nicknames, text, area, user IDs, timestamps, agreement counts, and ranks are intentionally not indexed. Comment data remains available for rendering, the comments modal, and the separate has-comments type filter.
+Text search lowercases both the indexed text and the input, then performs a literal substring match. It has no field prefixes or boolean operators.
 
 Tags are read only when the tag collection is an array. Unexpected tag values are treated as an empty collection so malformed optional data cannot abort filtering or rendering.
 
 The same normalized item is used for type filters, text search, rendering, and comment display. This keeps the visible card and the search result based on the same upstream record.
+
+### Search interaction
+
+The search input tracks IME composition separately. Intermediate composition input updates the field value but does not run filtering; the committed value is applied once at composition end.
+
+Filtering evaluates the current item list and toggles hidden state on cached card elements. It does not replace the content list HTML. New items are appended or prepended as individual nodes, changed items replace only their own node, and order changes reuse the existing nodes. A full markup refresh is reserved for display-mode, title-mode, or source-mode changes.
+
+```mermaid
+flowchart TD
+  A["Search input"] --> B{"IME composition active"}
+  B -->|Yes| C["Wait without filtering"]
+  B -->|No| D["Evaluate current item list"]
+  C --> E["compositionend"]
+  E --> D
+  D --> F["Toggle hidden state on cached cards"]
+```
 
 ## History pagination
 
@@ -241,8 +260,9 @@ The test suite focuses on rules that can regress without a browser:
 
 - pagination stops on empty, stalled, repeated, and excessive pages;
 - automatic refresh interval bounds are enforced;
-- tags are included in search while comment fields are excluded;
-- malformed tag arrays do not break search indexing.
+- tags are included in search;
+- malformed tag arrays do not break search indexing;
+- browser smoke checks confirm search keeps existing cards and produces no console errors.
 
 Run the suite with:
 
