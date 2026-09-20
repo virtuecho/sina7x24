@@ -161,6 +161,8 @@ export function createViewerCore() {
         const stickyPanelToggleBtn = document.getElementById('stickyPanelToggleBtn');
         const stickyPanelContent = document.getElementById('stickyPanelContent');
         const searchInput = document.getElementById('searchInput');
+        const searchIcon = document.getElementById('searchIcon');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
         const typeFilter = document.getElementById('typeFilter');
         const focusFilterBtn = document.getElementById('focusFilterBtn');
         const refreshBtn = document.getElementById('refreshBtn');
@@ -232,19 +234,23 @@ export function createViewerCore() {
         function setupEventListeners() {
             searchInput.addEventListener('compositionstart', function() {
                 isSearchComposing = true;
+                updateSearchControls();
             });
             searchInput.addEventListener('compositionend', function() {
                 isSearchComposing = false;
                 currentSearch = this.value.toLowerCase();
+                updateSearchControls();
                 invalidateRefreshAnchor();
                 filterContent();
             });
             searchInput.addEventListener('input', function() {
                 currentSearch = this.value.toLowerCase();
+                updateSearchControls();
                 if (isSearchComposing) return;
                 invalidateRefreshAnchor();
                 filterContent();
             });
+            clearSearchBtn.addEventListener('click', clearSearch);
             searchInput.addEventListener('focus', updateStickyPanelState);
             searchInput.addEventListener('blur', function() {
                 window.requestAnimationFrame(updateStickyPanelState);
@@ -284,6 +290,24 @@ export function createViewerCore() {
             if (window.visualViewport) {
                 window.visualViewport.addEventListener('resize', updateStickyPanelScrollableLayout);
             }
+        }
+
+        function updateSearchControls() {
+            const hasSearch = searchInput.value.length > 0;
+            clearSearchBtn.hidden = !hasSearch;
+            searchIcon.hidden = hasSearch;
+        }
+
+        function clearSearch() {
+            if (searchInput.value.length === 0) return;
+
+            isSearchComposing = false;
+            searchInput.value = '';
+            currentSearch = '';
+            updateSearchControls();
+            invalidateRefreshAnchor();
+            filterContent();
+            searchInput.focus();
         }
         
         function sleep(ms) {

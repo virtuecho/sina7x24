@@ -200,7 +200,7 @@ html {
         
         .search-box input {
             width: 100%;
-            padding: 12px 20px;
+            padding: 12px 48px 12px 20px;
             border: 1px solid #ddd;
             border-radius: 30px;
             font-size: 16px;
@@ -213,12 +213,37 @@ html {
             box-shadow: 0 0 0 2px rgba(74, 105, 189, 0.2);
         }
         
-        .search-box i {
+        .search-box .search-icon {
             position: absolute;
             right: 15px;
             top: 50%;
             transform: translateY(-50%);
             color: #888;
+        }
+
+        .search-clear-btn {
+            position: absolute;
+            right: 7px;
+            top: 50%;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: 0;
+            border-radius: 50%;
+            background: transparent;
+            color: #888;
+            cursor: pointer;
+            transform: translateY(-50%);
+        }
+
+        .search-clear-btn:hover {
+            color: #4a69bd;
+        }
+
+        .search-clear-btn i {
+            position: static;
+            transform: none;
+            color: inherit;
         }
         
         .filter-box {
@@ -1110,7 +1135,7 @@ html {
         }
 
         body.minimal-mode .search-box input {
-            padding-right: 24px;
+            padding-right: 42px;
         }
 
         body.minimal-mode .search-box input:focus {
@@ -1119,9 +1144,15 @@ html {
             outline: 1px solid #111111;
         }
 
-        body.minimal-mode .search-box i {
+        body.minimal-mode .search-box .search-icon {
             right: 7px;
             color: #555555;
+        }
+
+        body.minimal-mode .search-clear-btn {
+            right: 2px;
+            width: 24px;
+            height: 24px;
         }
 
         body.minimal-mode .refresh-btn:hover:not(:disabled),
