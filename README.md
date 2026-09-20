@@ -47,11 +47,15 @@ Examples include 5102090, 18:43, 2026-09-18, or a tag name.
 
 Install dependencies:
 
-    npm install
+```sh
+npm install
+```
 
 Start the development server:
 
-    npm run dev
+```sh
+npm run dev
+```
 
 Open http://127.0.0.1:3000/.
 
@@ -59,7 +63,9 @@ Open http://127.0.0.1:3000/legacy for the compact interface.
 
 For a normal run without watch mode:
 
-    npm start
+```sh
+npm start
+```
 
 ## Refresh behavior
 
@@ -74,15 +80,21 @@ For a normal run without watch mode:
 
 Run the regression tests:
 
-    npm test
+```sh
+npm test
+```
 
 Audit production dependencies:
 
-    npm audit --omit=dev
+```sh
+npm audit --omit=dev
+```
 
 Refresh the lockfile when applying compatible security updates:
 
-    npm audit fix --package-lock-only
+```sh
+npm audit fix --package-lock-only
+```
 
 ## HTTP endpoints
 
@@ -94,5 +106,5 @@ Refresh the lockfile when applying compatible security updates:
 
 ## Documentation
 
-- Architecture: ./ARCHITECTURE.md
-- 中文说明: ./README.zh-CN.md
+- Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
+- 中文说明: [README.zh-CN.md](./README.zh-CN.md)

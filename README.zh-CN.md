@@ -47,11 +47,15 @@
 
 安装依赖：
 
-    npm install
+```sh
+npm install
+```
 
 启动开发服务器：
 
-    npm run dev
+```sh
+npm run dev
+```
 
 打开 http://127.0.0.1:3000/。
 
@@ -59,7 +63,9 @@
 
 普通启动：
 
-    npm start
+```sh
+npm start
+```
 
 ## 刷新行为
 
@@ -74,15 +80,21 @@
 
 运行回归测试：
 
-    npm test
+```sh
+npm test
+```
 
 检查生产依赖：
 
-    npm audit --omit=dev
+```sh
+npm audit --omit=dev
+```
 
 应用兼容的安全更新并刷新锁文件：
 
-    npm audit fix --package-lock-only
+```sh
+npm audit fix --package-lock-only
+```
 
 ## HTTP 接口
 
@@ -94,5 +106,5 @@
 
 ## 文档
 
-- 架构说明：./ARCHITECTURE.md
-- English README：./README.md
+- 架构说明：[ARCHITECTURE.md](./ARCHITECTURE.md)
+- English README：[README.md](./README.md)
