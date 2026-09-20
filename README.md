@@ -8,16 +8,36 @@ Sina 7x24 Viewer is a small web application for browsing the Sina Finance 7x24 l
 
 - Browse the live feed from the standard page at /.
 - Open /legacy for a compact, text-first timeline.
-- Search and filter by article text, message ID, time, source, tags, and comment fields.
+- Search and filter by article text, message ID, time, and tags. A separate filter can show items that have comments.
 - Load older news while scrolling.
 - Refresh the latest news automatically or on demand.
 - Preserve a useful reading position while the latest feed changes.
+- Keep existing news cards while search results change, so filtering does not rebuild the entire list.
+- Handle Chinese IME composition without filtering intermediate input.
+- Continue loading older pages while a search is active; non-matching cards remain hidden.
 - Inspect article attributes and comments in the standard interface.
 - Render upstream text safely and allow only HTTP(S) image and document links.
 
 The viewer continues loading older pages even when the upstream page totals are unreliable. It stops safely when the upstream returns an empty page, stops advancing, repeats a page, or exceeds the per-request safety limit.
 
 The optional 100-item limit keeps the newest items and preserves the reading anchor. Removing the limit reloads history from the first older page and deduplicates by message ID.
+
+## Search
+
+The search field performs a case-insensitive literal substring match. Enter plain text; there are no field prefixes or boolean operators.
+
+The search control keeps the magnifying-glass icon on the left and shows an icon-only clear button on the right while the query is non-empty. Clearing the field restores the current unfiltered item list.
+
+It searches:
+
+- the full article text, including source text embedded in the article;
+- the message ID;
+- the original API timestamp, displayed local time, and YYYY-MM-DD date;
+- tag IDs and tag names.
+
+Search visibility does not stop history pagination. Scrolling continues to request older pages as usual, while items that do not match remain hidden.
+
+Examples include 5102090, 18:43, 2026-09-18, or a tag name.
 
 ## Requirements
 
@@ -27,11 +47,15 @@ The optional 100-item limit keeps the newest items and preserves the reading anc
 
 Install dependencies:
 
-    npm install
+```sh
+npm install
+```
 
 Start the development server:
 
-    npm run dev
+```sh
+npm run dev
+```
 
 Open http://127.0.0.1:3000/.
 
@@ -39,7 +63,9 @@ Open http://127.0.0.1:3000/legacy for the compact interface.
 
 For a normal run without watch mode:
 
-    npm start
+```sh
+npm start
+```
 
 ## Refresh behavior
 
@@ -54,15 +80,21 @@ For a normal run without watch mode:
 
 Run the regression tests:
 
-    npm test
+```sh
+npm test
+```
 
 Audit production dependencies:
 
-    npm audit --omit=dev
+```sh
+npm audit --omit=dev
+```
 
 Refresh the lockfile when applying compatible security updates:
 
-    npm audit fix --package-lock-only
+```sh
+npm audit fix --package-lock-only
+```
 
 ## HTTP endpoints
 
@@ -74,5 +106,5 @@ Refresh the lockfile when applying compatible security updates:
 
 ## Documentation
 
-- Architecture: ./ARCHITECTURE.md
-- 中文说明: ./README.zh-CN.md
+- Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
+- 中文说明: [README.zh-CN.md](./README.zh-CN.md)

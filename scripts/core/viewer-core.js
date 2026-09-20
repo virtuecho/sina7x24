@@ -13,24 +13,12 @@ export function normalizeAutoRefreshSeconds(value) {
 
 export function getSearchableTextParts(item) {
     const tags = Array.isArray(item?.tag) ? item.tag : [];
-    const comments = Array.isArray(item?.comment_list?.list) ? item.comment_list.list : [];
 
     return [
         item?.rich_text,
         String(item?.id ?? ''),
         item?.create_time,
-        ...tags.flatMap(tag => [tag?.id, tag?.name]),
-        ...comments.flatMap(comment => [
-            comment?.nick,
-            comment?.content,
-            comment?.text,
-            comment?.area,
-            comment?.time,
-            comment?.usertype,
-            comment?.agree,
-            comment?.rank,
-            comment?.uid
-        ])
+        ...tags.flatMap(tag => [tag?.id, tag?.name])
     ].filter(Boolean);
 }
 
@@ -141,6 +129,7 @@ export function createViewerCore() {
         let refreshInterval = null;
         let isFirstLoad = true;
         let currentSearch = '';
+        let isSearchComposing = false;
         let currentType = 'all';
         let focusFilterEnabled = false;
         let currentPage = 1;
@@ -167,10 +156,13 @@ export function createViewerCore() {
         let lastIdOrderStatus = { text: 'ID顺序检测：未检测', warning: false };
         // Stable DOM references owned by the page shell
         const contentList = document.getElementById('contentList');
+        const contentElements = new Map();
         const stickyPanel = document.getElementById('stickyPanel');
         const stickyPanelToggleBtn = document.getElementById('stickyPanelToggleBtn');
         const stickyPanelContent = document.getElementById('stickyPanelContent');
         const searchInput = document.getElementById('searchInput');
+        const searchIcon = document.getElementById('searchIcon');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
         const typeFilter = document.getElementById('typeFilter');
         const focusFilterBtn = document.getElementById('focusFilterBtn');
         const refreshBtn = document.getElementById('refreshBtn');
@@ -240,11 +232,25 @@ export function createViewerCore() {
         
         // Set up event listeners
         function setupEventListeners() {
-            searchInput.addEventListener('input', function() {
-                invalidateRefreshAnchor();
+            searchInput.addEventListener('compositionstart', function() {
+                isSearchComposing = true;
+                updateSearchControls();
+            });
+            searchInput.addEventListener('compositionend', function() {
+                isSearchComposing = false;
                 currentSearch = this.value.toLowerCase();
+                updateSearchControls();
+                invalidateRefreshAnchor();
                 filterContent();
             });
+            searchInput.addEventListener('input', function() {
+                currentSearch = this.value.toLowerCase();
+                updateSearchControls();
+                if (isSearchComposing) return;
+                invalidateRefreshAnchor();
+                filterContent();
+            });
+            clearSearchBtn.addEventListener('click', clearSearch);
             searchInput.addEventListener('focus', updateStickyPanelState);
             searchInput.addEventListener('blur', function() {
                 window.requestAnimationFrame(updateStickyPanelState);
@@ -284,6 +290,24 @@ export function createViewerCore() {
             if (window.visualViewport) {
                 window.visualViewport.addEventListener('resize', updateStickyPanelScrollableLayout);
             }
+        }
+
+        function updateSearchControls() {
+            const hasSearch = searchInput.value.length > 0;
+            clearSearchBtn.hidden = !hasSearch;
+            searchIcon.hidden = false;
+        }
+
+        function clearSearch() {
+            if (searchInput.value.length === 0) return;
+
+            isSearchComposing = false;
+            searchInput.value = '';
+            currentSearch = '';
+            updateSearchControls();
+            invalidateRefreshAnchor();
+            filterContent();
+            searchInput.focus();
         }
         
         function sleep(ms) {
@@ -383,7 +407,7 @@ export function createViewerCore() {
 
             updateItemLimitButton();
             updateStats();
-            filterContent();
+            filterContent({ refreshMarkup: true });
             updateHistoryStatus();
         }
 
@@ -441,7 +465,7 @@ export function createViewerCore() {
             showStandaloneTitle = !showStandaloneTitle;
             updateTitleModeButton();
             invalidateRefreshAnchor();
-            filterContent();
+            filterContent({ refreshMarkup: true });
         }
 
         function updateSourceModeButton() {
@@ -461,7 +485,7 @@ export function createViewerCore() {
             showStandaloneSource = !showStandaloneSource;
             updateSourceModeButton();
             invalidateRefreshAnchor();
-            filterContent();
+            filterContent({ refreshMarkup: true });
         }
 
         function updateFocusFilterButton() {
@@ -778,6 +802,15 @@ export function createViewerCore() {
             });
         }
 
+        function scheduleNextHistoryLoadCheck() {
+            window.setTimeout(() => {
+                if (refreshPaused || isFirstLoad || isLoadingMore || !hasMorePages) return;
+                if (isHistoryLoadAreaVisible()) {
+                    loadOlderPage();
+                }
+            }, 0);
+        }
+
         // Fetch JSON with timeout and configurable retries.
         async function fetchJson(url, { page, purpose, maxRetries = MAX_FETCH_RETRIES } = {}) {
             const contextLabel = page ? `page=${page}${purpose ? `, ${purpose}` : ''}` : 'page=unknown';
@@ -917,7 +950,7 @@ export function createViewerCore() {
         }
 
         function captureScrollAnchor() {
-            const contentItems = Array.from(contentList.querySelectorAll('.content-item'));
+            const contentItems = Array.from(contentList.querySelectorAll('.content-item:not([hidden])'));
             const anchorLine = window.innerHeight * 0.25;
             const visibleItems = contentItems
                 .map(element => ({ element, rect: element.getBoundingClientRect() }))
@@ -955,7 +988,7 @@ export function createViewerCore() {
 
             if (!itemLimitEnabled) return;
 
-            const anchorElement = Array.from(contentList.querySelectorAll('.content-item'))
+            const anchorElement = Array.from(contentList.querySelectorAll('.content-item:not([hidden])'))
                 .find(element => String(element.dataset.id) === anchor.id);
 
             if (!anchorElement) {
@@ -1063,24 +1096,24 @@ export function createViewerCore() {
                 lastUpdateTime = new Date();
                 updateStats(updatedItems.length);
                 
-                if (isFirstLoad || trimmedCount > 0 || (orderDisorderDetected && addedItems.length > 0)) {
-                    filterContent();
-                    isFirstLoad = false;
+                if (!isFirstLoad && updatedItems.length > 0) {
+                    refreshContentItemElements(updatedItems);
+                }
 
-                } else {
-                    // Filter new items based on current criteria
-                    const filteredNewItems = filterItemsByCriteria(addedItems, currentSearch, currentType, focusFilterEnabled);
-                    if (updatedItems.length > 0) {
-                        // An update can change whether an existing item matches the filters.
-                        filterContent();
-                    } else if (filteredNewItems.length > 0) {
-                        if (mode === 'prepend') {
-                            renderNewItems(filteredNewItems);
-                        } else {
-                            renderOlderItems(filteredNewItems);
-                        }
+                if (isFirstLoad || trimmedCount > 0 || (orderDisorderDetected && addedItems.length > 0)) {
+                    renderContent();
+                } else if (addedItems.length > 0) {
+                    if (mode === 'prepend') {
+                        renderNewItems(addedItems);
+                    } else {
+                        renderOlderItems(addedItems);
                     }
                 }
+
+                if (isFirstLoad || trimmedCount > 0 || orderDisorderDetected || addedItems.length > 0 || updatedItems.length > 0) {
+                    filterContent();
+                }
+                isFirstLoad = false;
 
                 return { addedItems, updatedItems, rawItems: newItems, pageInfo, trimmedCount };
             } else {
@@ -1227,33 +1260,84 @@ export function createViewerCore() {
             });
         }
         
-        // Render content
-        function renderContent(items) {
-            contentList.innerHTML = items.map(item => createContentItem(item)).join('');
-        }
-        
-        // Render new items
-        function renderNewItems(items) {
-            if (items.length === 0) return;
-            
-            const newContent = items.map(item => createContentItem(item)).join('');
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = newContent;
-            
-            contentList.prepend(...tempDiv.children);
+        function getContentItemKey(item) {
+            return String(item.id);
         }
 
-        // Render older items at the bottom
-        function renderOlderItems(items) {
-            if (items.length === 0) return;
-            
-            const newContent = items.map(item => createContentItem(item)).join('');
+        function createContentItemElement(item) {
             const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = newContent;
-            
-            Array.from(tempDiv.children).forEach(element => {
-                contentList.appendChild(element);
+            tempDiv.innerHTML = createContentItem(item);
+            return tempDiv.firstElementChild;
+        }
+
+        function refreshContentItemElements(items) {
+            items.forEach(item => {
+                const key = getContentItemKey(item);
+                const nextElement = createContentItemElement(item);
+                const currentElement = contentElements.get(key);
+
+                if (currentElement) {
+                    currentElement.replaceWith(nextElement);
+                } else {
+                    contentList.appendChild(nextElement);
+                }
+
+                contentElements.set(key, nextElement);
             });
+        }
+
+        function appendContentItems(items, { prepend = false } = {}) {
+            if (items.length === 0) return;
+
+            const fragment = document.createDocumentFragment();
+            items.forEach(item => {
+                const key = getContentItemKey(item);
+                const element = createContentItemElement(item);
+                contentElements.set(key, element);
+                fragment.appendChild(element);
+            });
+
+            if (prepend) {
+                contentList.prepend(fragment);
+            } else {
+                contentList.appendChild(fragment);
+            }
+        }
+
+        // Render content without recreating existing cards.
+        function renderContent() {
+            const activeKeys = new Set(allItems.map(getContentItemKey));
+            for (const [key, element] of contentElements) {
+                if (!activeKeys.has(key)) {
+                    element.remove();
+                    contentElements.delete(key);
+                }
+            }
+
+            const fragment = document.createDocumentFragment();
+            allItems.forEach(item => {
+                const key = getContentItemKey(item);
+                let element = contentElements.get(key);
+
+                if (!element) {
+                    element = createContentItemElement(item);
+                    contentElements.set(key, element);
+                }
+
+                fragment.appendChild(element);
+            });
+
+            contentList.replaceChildren(fragment);
+        }
+
+        // Render new items at the top.
+        function renderNewItems(items) {
+            appendContentItems(items, { prepend: true });
+        }
+
+        // Render older items at the bottom.
+        function renderOlderItems(items) {
+            appendContentItems(items);
         }
         
         const DEFAULT_COMMENT_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%23e2e8f0"/><circle cx="22" cy="17" r="8" fill="%2394a3b8"/><path d="M9 37c2.8-7 9.4-10 13-10s10.2 3 13 10" fill="%2394a3b8"/></svg>';
@@ -1745,12 +1829,20 @@ export function createViewerCore() {
             });
         }
         
-        // Filter content
-        function filterContent() {
+        // Filter content without rebuilding the list.
+        function filterContent({ refreshMarkup = false } = {}) {
+            if (refreshMarkup) {
+                refreshContentItemElements(allItems);
+                renderContent();
+            }
+
             const filteredItems = filterItemsByCriteria(allItems, currentSearch, currentType, focusFilterEnabled);
-            
+            const visibleKeys = new Set(filteredItems.map(getContentItemKey));
+
             updateVisibleStats(filteredItems.length);
-            renderContent(filteredItems);
+            contentElements.forEach((element, key) => {
+                element.hidden = !visibleKeys.has(key);
+            });
         }
         
         // Update stats
@@ -2080,6 +2172,10 @@ export function createViewerCore() {
                 pendingRefreshPageSize = null;
                 if (queuedPageSize !== null && !refreshPaused && !document.hidden) {
                     fetchData(queuedPageSize);
+                } else {
+                    // Hidden filtered cards do not move the sentinel. Recheck it once
+                    // so history pagination keeps the same behavior as an unfiltered list.
+                    scheduleNextHistoryLoadCheck();
                 }
             }
         }
